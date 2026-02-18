@@ -1,0 +1,7 @@
+.gradle/
+build/
+*.pdf
+*.py
+.idea/
+*.iml
+.DS_Store

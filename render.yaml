@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: span-screener
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: MASSIVE_API_KEY
+        sync: false  # set manually in Render dashboard
+      - key: JAVA_OPTS
+        value: -Xmx256m
