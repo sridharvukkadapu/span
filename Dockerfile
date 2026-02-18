@@ -12,4 +12,4 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build /app/build/libs/span-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xmx384m", "-Xms128m", "-XX:+UseSerialGC", "-jar", "app.jar"]
