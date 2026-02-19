@@ -57,8 +57,20 @@ data class SignalSnapshot(
     val signal: Signal,
     val checksSummary: String,
     val action: String,       // "BUY", "SELL", "HOLD (no position)", "HOLD (in position)"
+    val priceChange: Double? = null,       // absolute price change since last evaluation
+    val priceChangePercent: Double? = null, // percent price change since last evaluation
 ) {
     val priceFormatted: String get() = "$${fmt2(price)}"
+    val priceChangeFormatted: String?
+        get() = priceChange?.let {
+            val sign = if (it >= 0) "+" else ""
+            "$sign${fmt2(it)}"
+        }
+    val priceChangePctFormatted: String?
+        get() = priceChangePercent?.let {
+            val sign = if (it >= 0) "+" else ""
+            "$sign${fmt2(it)}%"
+        }
 }
 
 private fun fmt2(v: Double): String = String.format("%.2f", v)

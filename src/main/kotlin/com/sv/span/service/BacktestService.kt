@@ -208,10 +208,14 @@ class BacktestService(private val api: MassiveApiClient) {
         val signalHistory = mutableListOf<SignalSnapshot>()
         var winCount = 0
         var lossCount = 0
+        var prevPrice: Double? = null
 
         for (event in deduped) {
             val price = barsByDate[event.date]?.close ?: continue
             val inPosition = sharesHeld > 0.0
+
+            val pChange = prevPrice?.let { round2(price - it) }
+            val pChangePct = prevPrice?.let { round2((price - it) / it * 100) }
 
             when {
                 event.signal == Signal.BUY && !inPosition -> {
@@ -219,14 +223,14 @@ class BacktestService(private val api: MassiveApiClient) {
                     entryPrice = price
                     cash = 0.0
                     trades.add(BacktestTrade("BUY", event.date, price, event.signal, event.checksSummary, sharesHeld, null))
-                    signalHistory.add(SignalSnapshot(event.date, price, event.signal, event.checksSummary, "BUY"))
+                    signalHistory.add(SignalSnapshot(event.date, price, event.signal, event.checksSummary, "BUY", pChange, pChangePct))
                 }
                 event.signal == Signal.SELL && inPosition -> {
                     cash = sharesHeld * price
                     val tradeReturn = round2((price - entryPrice) / entryPrice * 100)
                     if (tradeReturn >= 0) winCount++ else lossCount++
                     trades.add(BacktestTrade("SELL", event.date, price, event.signal, event.checksSummary, null, tradeReturn))
-                    signalHistory.add(SignalSnapshot(event.date, price, event.signal, event.checksSummary, "SELL"))
+                    signalHistory.add(SignalSnapshot(event.date, price, event.signal, event.checksSummary, "SELL", pChange, pChangePct))
                     sharesHeld = 0.0
                     entryPrice = 0.0
                 }
@@ -237,9 +241,11 @@ class BacktestService(private val api: MassiveApiClient) {
                         inPosition -> "HOLD (in position)"
                         else -> "HOLD (no position)"
                     }
-                    signalHistory.add(SignalSnapshot(event.date, price, event.signal, event.checksSummary, action))
+                    signalHistory.add(SignalSnapshot(event.date, price, event.signal, event.checksSummary, action, pChange, pChangePct))
                 }
             }
+
+            prevPrice = price
         }
 
         // If still holding at end, mark-to-market

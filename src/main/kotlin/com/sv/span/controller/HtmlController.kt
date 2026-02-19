@@ -362,9 +362,12 @@ class HtmlController(
         val tradesHtml = if (r.trades.isEmpty()) "" else r.trades.joinToString("") { t ->
             val typeClass = if (t.type == "BUY") "tag-buy" else "tag-sell"
             val retHtml = t.tradeReturnFormatted?.let {
-                val c = if ((t.tradeReturn ?: 0.0) >= 0) "var(--green)" else "var(--red)"
-                "<span style=\"color:$c;font-weight:700\">$it</span>"
-            } ?: "&mdash;"
+                val positive = (t.tradeReturn ?: 0.0) >= 0
+                val color = if (positive) "var(--green)" else "var(--red)"
+                val bgColor = if (positive) "var(--green-dim)" else "var(--red-dim)"
+                val arrow = if (positive) "&#9650;" else "&#9660;"
+                """<span class="price-change" style="color:$color;background:$bgColor">$arrow $it</span>"""
+            } ?: "<span class=\"price-change\" style=\"color:var(--text-muted);background:var(--surface-2)\">Entry</span>"
             """
             <tr>
                 <td><span class="tag $typeClass">${t.type}</span></td>
@@ -387,10 +390,20 @@ class HtmlController(
                 s.action.startsWith("SELL") -> "action-sell"
                 else -> "action-hold"
             }
+            val changeHtml = if (s.priceChange != null && s.priceChangePercent != null) {
+                val positive = s.priceChange >= 0
+                val color = if (positive) "var(--green)" else "var(--red)"
+                val bgColor = if (positive) "var(--green-dim)" else "var(--red-dim)"
+                val arrow = if (positive) "&#9650;" else "&#9660;"
+                """<span class="price-change" style="color:$color;background:$bgColor">$arrow ${s.priceChangePctFormatted}</span>"""
+            } else {
+                "<span class=\"price-change\" style=\"color:var(--text-muted);background:var(--surface-2)\">&mdash;</span>"
+            }
             """
             <tr>
                 <td>${s.date}</td>
                 <td class="num">${s.priceFormatted}</td>
+                <td class="num">$changeHtml</td>
                 <td><span class="tag $sigClass">${s.signal}</span></td>
                 <td class="checks-col">${formatChecksRich(s.checksSummary)}</td>
                 <td class="$actionClass">${s.action}</td>
@@ -484,9 +497,10 @@ class HtmlController(
 
                 /* Table */
                 table { width: 100%; border-collapse: collapse; }
-                th { text-align: left; padding: 10px 0; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid var(--border-2); }
-                td { padding: 12px 0; font-size: 13px; color: var(--text); border-bottom: 1px solid var(--border); vertical-align: middle; }
+                th { text-align: left; padding: 10px 8px; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid var(--border-2); }
+                td { padding: 14px 8px; font-size: 13px; color: var(--text); border-bottom: 1px solid var(--border); vertical-align: middle; }
                 td.num { font-variant-numeric: tabular-nums; font-weight: 500; }
+                tr:hover td { background: rgba(99,102,241,0.04); }
                 .checks-col { font-size: 11px; line-height: 1.7; }
 
                 /* Tags */
@@ -500,6 +514,9 @@ class HtmlController(
                 .ck-g { background: var(--green-dim); color: var(--green); }
                 .ck-r { background: var(--red-dim); color: var(--red); }
                 .ck-y { background: var(--yellow-dim); color: var(--yellow); }
+
+                /* Price change pill */
+                .price-change { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.2px; white-space: nowrap; }
 
                 /* Action */
                 .action-buy { color: var(--green); font-weight: 700; }
@@ -602,7 +619,7 @@ class HtmlController(
                         ${if (r.signalHistory.isEmpty()) "<div class='empty'>No signal evaluations during this period.</div>" else """
                         <div style="overflow-x:auto;">
                         <table>
-                            <thead><tr><th>Date</th><th>Price</th><th>Signal</th><th>Checks</th><th>Action</th></tr></thead>
+                            <thead><tr><th>Date</th><th>Price</th><th>Change</th><th>Signal</th><th>Checks</th><th>Action</th></tr></thead>
                             <tbody>$signalRows</tbody>
                         </table>
                         </div>
