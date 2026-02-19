@@ -293,10 +293,14 @@ class BacktestService(private val api: MassiveApiClient) {
         val summary = buildString {
             append("$symbol backtest: ${startDate} to ${lastDate}. ")
             append("Strategy returned ${strategyReturn}% vs buy-and-hold ${buyAndHoldReturn}%. ")
-            append("$totalTrades trades, ")
-            if (winRate != null) append("${winRate}% win rate. ")
-            if (strategyReturn > buyAndHoldReturn) append("Strategy OUTPERFORMED by ${round2(strategyReturn - buyAndHoldReturn)}%.")
-            else append("Strategy UNDERPERFORMED by ${round2(buyAndHoldReturn - strategyReturn)}%.")
+            if (totalTrades == 0) {
+                append("No trades executed — all signals were HOLD so capital stayed in cash.")
+            } else {
+                append("$totalTrades trades, ")
+                if (winRate != null) append("${winRate}% win rate. ")
+                if (strategyReturn > buyAndHoldReturn) append("Strategy OUTPERFORMED by ${round2(strategyReturn - buyAndHoldReturn)}%.")
+                else append("Strategy UNDERPERFORMED by ${round2(buyAndHoldReturn - strategyReturn)}%.")
+            }
         }
 
         return BacktestResult(

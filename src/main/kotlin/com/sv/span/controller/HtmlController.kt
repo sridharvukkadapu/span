@@ -247,8 +247,9 @@ class HtmlController(
     }
 
     private fun renderBacktestHtml(r: BacktestResult): String {
-        val outColor = if (r.outperformance >= 0) "#22c55e" else "#ef4444"
-        val outBg = if (r.outperformance >= 0) "#dcfce7" else "#fee2e2"
+        val noTrades = r.totalTrades == 0
+        val outColor = if (noTrades) "#64748b" else if (r.outperformance >= 0) "#22c55e" else "#ef4444"
+        val outBg = if (noTrades) "#f1f5f9" else if (r.outperformance >= 0) "#dcfce7" else "#fee2e2"
 
         val tradesHtml = r.trades.joinToString("") { t ->
             val emoji = if (t.type == "BUY") "&#x1F7E2;" else "&#x1F534;"
@@ -401,7 +402,9 @@ class HtmlController(
                     <h1>${r.symbol} Backtest</h1>
                     <div class="sub">${r.companyName ?: ""} &middot; ${r.periodStart} to ${r.periodEnd}</div>
                     <div class="result-badge">
-                        ${if (r.outperformance >= 0) "OUTPERFORMED" else "UNDERPERFORMED"} by ${r.outperformanceFormatted}
+                        ${if (noTrades) "NO TRADES EXECUTED &mdash; Stayed in cash"
+                          else if (r.outperformance >= 0) "OUTPERFORMED by ${r.outperformanceFormatted}"
+                          else "UNDERPERFORMED by ${r.outperformanceFormatted}"}
                     </div>
                 </div>
 
