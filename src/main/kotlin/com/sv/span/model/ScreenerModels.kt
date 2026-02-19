@@ -18,6 +18,7 @@ data class ScreenerResult(
     val balanceSheet: BalanceSheetSummary,
     val technicals: Technicals?,
     val checks: List<CheckResult>,
+    val projection: Projection?,
     val summary: String,
 )
 
@@ -93,6 +94,39 @@ data class CheckResult(
     val light: CheckLight,
     val detail: String,
 )
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class Projection(
+    val years: List<YearProjection>,
+    val assumptions: ProjectionAssumptions,
+)
+
+data class YearProjection(
+    val year: Int,
+    val projectedRevenue: Double,
+    val projectedNetIncome: Double,
+    val projectedEps: Double,
+    val projectedPrice: Double,
+) {
+    val revenueFormatted: String get() = "$${fmtLarge(projectedRevenue)}"
+    val netIncomeFormatted: String get() = "$${fmtLarge(projectedNetIncome)}"
+    val epsFormatted: String get() = "$${fmt2(projectedEps)}"
+    val priceFormatted: String get() = "$${fmt2(projectedPrice)}"
+}
+
+data class ProjectionAssumptions(
+    val baseRevenueGrowth: Double,
+    val growthDecayRate: Double,
+    val profitMarginUsed: Double,
+    val peMultipleUsed: Double,
+    val sharesOutstanding: Double,
+    val note: String,
+) {
+    val baseGrowthFormatted: String get() = "${fmt2(baseRevenueGrowth)}%"
+    val decayFormatted: String get() = "${fmt2(growthDecayRate * 100)}%"
+    val marginFormatted: String get() = "${fmt2(profitMarginUsed)}%"
+    val peFormatted: String get() = "${fmt2(peMultipleUsed)}x"
+}
 
 // ---- Formatting helpers ----
 

@@ -54,6 +54,27 @@ class HtmlController(private val screenerService: ScreenerService) {
             "<tr><td>${it.fiscalYear}</td><td>${it.revenueFormatted}</td></tr>"
         }
 
+        val projectionHtml = if (r.projection != null) {
+            val projRows = r.projection.years.joinToString("") { y ->
+                "<tr><td>${y.year}</td><td>${y.revenueFormatted}</td><td>${y.netIncomeFormatted}</td><td>${y.epsFormatted}</td><td style=\"font-weight:600\">${y.priceFormatted}</td></tr>"
+            }
+            val a = r.projection.assumptions
+            """
+            <div class="section">
+                <h2>3-Year Price Projection</h2>
+                <table>
+                    <thead><tr><th>Year</th><th>Revenue</th><th>Net Income</th><th>EPS</th><th>Est. Price</th></tr></thead>
+                    <tbody>$projRows</tbody>
+                </table>
+                <div style="margin-top: 12px; padding: 12px; background: #f1f5f9; border-radius: 8px; font-size: 12px; color: #64748b;">
+                    <strong>Assumptions:</strong> Base growth ${a.baseGrowthFormatted}, decay ${a.decayFormatted}/yr, 
+                    profit margin ${a.marginFormatted}, P/E multiple ${a.peFormatted}<br>
+                    ${a.note}
+                </div>
+            </div>
+            """
+        } else ""
+
         return """
         <!DOCTYPE html>
         <html lang="en">
@@ -150,6 +171,8 @@ class HtmlController(private val screenerService: ScreenerService) {
                         <div class="metric"><div class="label">Cash/Debt</div><div class="value">${r.balanceSheet.cashToDebtFormatted ?: "N/A"}</div></div>
                     </div>
                 </div>
+
+                $projectionHtml
 
                 <div class="section">
                     <h2>Technicals</h2>

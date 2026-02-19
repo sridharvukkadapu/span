@@ -88,6 +88,9 @@ class ScreenerService(private val api: MassiveApiClient) {
             else -> "LOW"
         }
 
+        // Build 3-year price projection
+        val projection = buildProjection(overview, margins, revenueAnalysis)
+
         val summary = buildString {
             append("${details?.name ?: symbol}: $signal ($confidence confidence). ")
             append("$greens/$total checks GREEN. ")
@@ -105,6 +108,7 @@ class ScreenerService(private val api: MassiveApiClient) {
             balanceSheet = balanceSummary,
             technicals = technicals,
             checks = checks,
+            projection = projection,
             summary = summary.trim(),
         )
     }
@@ -269,6 +273,63 @@ class ScreenerService(private val api: MassiveApiClient) {
             else -> CheckLight.YELLOW to "RSI ${rsi}"
         }
         return CheckResult("Technicals", light, detail)
+    }
+
+    // ---- 3-Year Price Projection ----
+
+    private fun buildProjection(
+        overview: Overview,
+        margins: Margins,
+        revenue: RevenueAnalysis,
+    ): Projection? {
+        val ttmRevenue = revenue.revenueTtm ?: return null
+        val profitMargin = margins.profitMargin ?: return null
+        val pe = overview.peRatio ?: return null
+        val shares = overview.sharesOutstanding ?: return null
+        if (pe <= 0 || shares <= 0) return null
+
+        // Use actual YoY growth if available; fallback to 5%
+        val baseGrowth = revenue.revenueGrowthYoY ?: 5.0
+        // Cap extreme growth rates to +/- 80% for sanity
+        val cappedGrowth = baseGrowth.coerceIn(-80.0, 80.0)
+        val decayRate = 0.20 // growth decays 20% each year (conservative)
+
+        val currentYear = java.time.Year.now().value
+        val years = mutableListOf<YearProjection>()
+        var projRevenue = ttmRevenue
+        var growthRate = cappedGrowth
+
+        for (i in 1..3) {
+            projRevenue *= (1 + growthRate / 100)
+            val projNetIncome = projRevenue * (profitMargin / 100)
+            val projEps = projNetIncome / shares
+            val projPrice = projEps * pe
+
+            years.add(YearProjection(
+                year = currentYear + i,
+                projectedRevenue = round2(projRevenue),
+                projectedNetIncome = round2(projNetIncome),
+                projectedEps = round2(projEps),
+                projectedPrice = round2(projPrice),
+            ))
+
+            // Decay the growth rate for next year
+            growthRate *= (1 - decayRate)
+        }
+
+        val assumptions = ProjectionAssumptions(
+            baseRevenueGrowth = round2(cappedGrowth),
+            growthDecayRate = decayRate,
+            profitMarginUsed = round2(profitMargin),
+            peMultipleUsed = round2(pe),
+            sharesOutstanding = shares,
+            note = if (revenue.revenueGrowthYoY != null)
+                "Growth based on trailing YoY revenue growth with ${round2(decayRate * 100)}% annual decay. P/E and margin held constant."
+            else
+                "Insufficient historical data for YoY growth; using conservative 5% default with ${round2(decayRate * 100)}% annual decay.",
+        )
+
+        return Projection(years = years, assumptions = assumptions)
     }
 
     // ---- Util ----
