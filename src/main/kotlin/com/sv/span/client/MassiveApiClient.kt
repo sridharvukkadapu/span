@@ -63,6 +63,18 @@ class MassiveApiClient(private val massiveRestClient: RestClient) {
             ?.results?.values?.firstOrNull()?.value
     }
 
+    fun getAggregateRange(ticker: String, from: String, to: String): List<AggBarDto> {
+        return cached("aggs:$ticker:$from:$to") {
+            log.info("Fetching aggregate bars for {} from {} to {}", ticker, from, to)
+            massiveRestClient.get()
+                .uri("/v2/aggs/ticker/{ticker}/range/1/day/{from}/{to}?adjusted=true&sort=asc&limit=50000",
+                    ticker, from, to)
+                .retrieve()
+                .body(AggResponse::class.java)
+                ?.results.orEmpty()
+        } ?: emptyList()
+    }
+
     // ---- Simple TTL cache ----
 
     @Suppress("UNCHECKED_CAST")

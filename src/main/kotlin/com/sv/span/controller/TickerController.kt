@@ -1,6 +1,7 @@
 package com.sv.span.controller
 
 import com.sv.span.model.ScreenerResult
+import com.sv.span.service.BacktestService
 import com.sv.span.service.ScreenerService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -11,7 +12,10 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @RequestMapping("/api/v1/tickers")
-class TickerController(private val screenerService: ScreenerService) {
+class TickerController(
+    private val screenerService: ScreenerService,
+    private val backtestService: BacktestService,
+) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -24,6 +28,19 @@ class TickerController(private val screenerService: ScreenerService) {
             log.error("Error analyzing {}: {}", symbol, e.message, e)
             ResponseEntity.internalServerError().body(
                 mapOf("error" to "Failed to analyze $symbol", "detail" to (e.message ?: "Unknown error"))
+            )
+        }
+    }
+
+    @GetMapping("/{symbol}/backtest")
+    fun getBacktest(@PathVariable symbol: String): ResponseEntity<Any> {
+        return try {
+            val result = backtestService.backtest(symbol)
+            ResponseEntity.ok(result)
+        } catch (e: Exception) {
+            log.error("Error backtesting {}: {}", symbol, e.message, e)
+            ResponseEntity.internalServerError().body(
+                mapOf("error" to "Failed to backtest $symbol", "detail" to (e.message ?: "Unknown error"))
             )
         }
     }
