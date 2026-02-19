@@ -100,6 +100,11 @@ class HtmlController(private val screenerService: ScreenerService) {
                 </div>
 
                 <div class="section">
+                    <h2>Screening Checks</h2>
+                    $checksHtml
+                </div>
+
+                <div class="section">
                     <h2>Overview</h2>
                     <div class="grid">
                         <div class="metric"><div class="label">Price</div><div class="value">${r.overview.priceFormatted ?: "N/A"}</div></div>
@@ -153,11 +158,6 @@ class HtmlController(private val screenerService: ScreenerService) {
                         <div class="metric"><div class="label">RSI (14)</div><div class="value">${r.technicals?.rsi14Formatted ?: "N/A"}</div></div>
                         <div class="metric"><div class="label">Trend</div><div class="value">${r.technicals?.priceVsSma50 ?: "N/A"}</div></div>
                     </div>
-                </div>
-
-                <div class="section">
-                    <h2>Screening Checks</h2>
-                    $checksHtml
                 </div>
 
                 <div class="try-other">
