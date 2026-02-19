@@ -111,6 +111,13 @@ class HtmlController(
                 .try-other input { padding: 8px 16px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; width: 120px; text-transform: uppercase; }
                 .try-other button { padding: 8px 20px; background: #3b82f6; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; margin-left: 8px; }
                 .try-other button:hover { background: #2563eb; }
+                .check-pills { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+                .check-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+                .pill-green { background: #dcfce7; color: #15803d; }
+                .pill-red { background: #fee2e2; color: #dc2626; }
+                .pill-yellow { background: #fef3c7; color: #b45309; }
+                .backtest-link { display: inline-block; margin-top: 14px; padding: 10px 28px; background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 600; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 2px 8px rgba(99,102,241,0.3); }
+                .backtest-link:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.4); }
             </style>
         </head>
         <body>
@@ -120,6 +127,22 @@ class HtmlController(
                     <div class="company">${r.companyName ?: ""}</div>
                     <div class="signal-badge">${r.signal}</div>
                     <div class="confidence">${r.confidence} confidence</div>
+                    <div class="check-pills">
+                        ${r.checks.joinToString("") { c ->
+                            val cls = when (c.light) {
+                                CheckLight.GREEN -> "pill-green"
+                                CheckLight.YELLOW -> "pill-yellow"
+                                CheckLight.RED -> "pill-red"
+                            }
+                            val dot = when (c.light) {
+                                CheckLight.GREEN -> "\uD83D\uDFE2"
+                                CheckLight.YELLOW -> "\uD83D\uDFE1"
+                                CheckLight.RED -> "\uD83D\uDD34"
+                            }
+                            "<span class=\"check-pill $cls\">$dot ${c.name}</span>"
+                        }}
+                    </div>
+                    <a class="backtest-link" href="/backtest/${r.symbol}">View 2-Year Backtest &rarr;</a>
                 </div>
 
                 <div class="section">
@@ -193,7 +216,6 @@ class HtmlController(
                 </div>
 
                 <div class="footer">
-                    <a href="/backtest/${r.symbol}" style="color:#3b82f6;text-decoration:none;font-size:14px;font-weight:600;">View 2-Year Backtest &rarr;</a><br><br>
                     Powered by <a href="https://github.com/sridharvukkadapu/span">Span Screener</a> &middot; Data from Massive.com
                 </div>
             </div>
