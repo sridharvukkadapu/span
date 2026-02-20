@@ -18,9 +18,31 @@ class FmpMarketDataProvider(private val fmpApi: FmpApiClient) : MarketDataProvid
 
     override val providerName: String = "FMP"
 
+    /**
+     * FMP free-tier restricts certain secondary share-class symbols.
+     * Map them to the primary listing that is available.
+     */
+    private val symbolAliases = mapOf(
+        "GOOG"  to "GOOGL",
+        "BRK.A" to "BRK-B",
+        "FOX"   to "FOXA",
+        "NWSA"  to "NWS",
+        "LSXMA" to "LSXMK",
+    )
+
+    /** Resolve to FMP-compatible symbol, logging if aliased */
+    private fun resolve(symbol: String): String {
+        val resolved = symbolAliases[symbol.uppercase()] ?: symbol.uppercase()
+        if (resolved != symbol.uppercase()) {
+            log.info("[FMP Provider] Symbol {} aliased to {} (FMP free-tier restriction)", symbol, resolved)
+        }
+        return resolved
+    }
+
     override fun getDailyBars(symbol: String, from: String, to: String): List<DailyBar> {
-        log.info("[FMP Provider] Requesting daily bars for {} ({} → {})", symbol, from, to)
-        val prices = fmpApi.getHistoricalPrices(symbol, from, to)
+        val sym = resolve(symbol)
+        log.info("[FMP Provider] Requesting daily bars for {} ({} → {})", sym, from, to)
+        val prices = fmpApi.getHistoricalPrices(sym, from, to)
 
         // FMP returns most-recent first; sort ascending by date
         val bars = prices
@@ -42,12 +64,17 @@ class FmpMarketDataProvider(private val fmpApi: FmpApiClient) : MarketDataProvid
     }
 
     override fun getQuarterlyFinancials(symbol: String, limit: Int): List<QuarterlyFinancial> {
-        log.info("[FMP Provider] Requesting quarterly financials for {} (limit={})", symbol, limit)
+        val sym = resolve(symbol)
+        // FMP free tier caps limit at 5 per request with no pagination.
+        // Use annual statements (5 years) for full backtest coverage.
+        val effectiveLimit = 5
+        val period = "annual"
+        log.info("[FMP Provider] Requesting {} financials for {} (limit={})", period, sym, effectiveLimit)
 
         // FMP has separate endpoints for income, balance sheet, cash flow
-        val incomeStatements = fmpApi.getIncomeStatements(symbol, "quarter", limit)
-        val balanceSheets = fmpApi.getBalanceSheets(symbol, "quarter", limit)
-        val cashFlows = fmpApi.getCashFlowStatements(symbol, "quarter", limit)
+        val incomeStatements = fmpApi.getIncomeStatements(sym, period, effectiveLimit)
+        val balanceSheets = fmpApi.getBalanceSheets(sym, period, effectiveLimit)
+        val cashFlows = fmpApi.getCashFlowStatements(sym, period, effectiveLimit)
 
         log.debug("[FMP Provider] Received {} income, {} balance, {} cashflow statements for {}",
             incomeStatements.size, balanceSheets.size, cashFlows.size, symbol)
@@ -65,7 +92,7 @@ class FmpMarketDataProvider(private val fmpApi: FmpApiClient) : MarketDataProvid
 
                 QuarterlyFinancial(
                     endDate = inc.date!!,
-                    filingDate = inc.fillingDate,   // FMP uses "fillingDate" (their typo)
+                    filingDate = inc.filingDate ?: inc.fillingDate,  // handle both field names
                     fiscalYear = inc.calendarYear,
                     fiscalPeriod = inc.period,
 
@@ -88,14 +115,15 @@ class FmpMarketDataProvider(private val fmpApi: FmpApiClient) : MarketDataProvid
                 )
             }
 
-        log.info("[FMP Provider] Assembled {} quarterly financials for {}", financials.size, symbol)
+        log.info("[FMP Provider] Assembled {} {} financials for {}", financials.size, period, symbol)
         return financials
     }
 
     override fun getCompanyProfile(symbol: String): CompanyProfile? {
-        log.info("[FMP Provider] Requesting company profile for {}", symbol)
+        val sym = resolve(symbol)
+        log.info("[FMP Provider] Requesting company profile for {}", sym)
 
-        val profile = fmpApi.getProfile(symbol)
+        val profile = fmpApi.getProfile(sym)
         if (profile == null) {
             log.warn("[FMP Provider] No profile found for {}", symbol)
             return null
@@ -106,7 +134,7 @@ class FmpMarketDataProvider(private val fmpApi: FmpApiClient) : MarketDataProvid
         var shares = profile.sharesOutstanding
         if (shares == null || shares <= 0) {
             log.info("[FMP Provider] Profile shares missing for {}, trying shares-float endpoint", symbol)
-            val floatData = fmpApi.getSharesFloat(symbol)
+            val floatData = fmpApi.getSharesFloat(sym)
             shares = floatData?.outstandingShares
         }
 

@@ -26,7 +26,9 @@ data class FmpIncomeStatementDto(
     val symbol: String? = null,
     val period: String? = null,                // "Q1","Q2","Q3","Q4","FY"
     val calendarYear: String? = null,
-    val fillingDate: String? = null,           // FMP typo: "fillingDate" = filing date
+    val filingDate: String? = null,            // correct field name in /stable/ API
+    @JsonProperty("fillingDate")
+    val fillingDate: String? = null,           // legacy typo variant
     val acceptedDate: String? = null,
     val revenue: Double? = null,
     val grossProfit: Double? = null,
@@ -46,6 +48,8 @@ data class FmpBalanceSheetDto(
     val symbol: String? = null,
     val period: String? = null,
     val calendarYear: String? = null,
+    val filingDate: String? = null,
+    @JsonProperty("fillingDate")
     val fillingDate: String? = null,
     val cashAndCashEquivalents: Double? = null,
     val shortTermInvestments: Double? = null,
@@ -66,6 +70,8 @@ data class FmpCashFlowDto(
     val symbol: String? = null,
     val period: String? = null,
     val calendarYear: String? = null,
+    val filingDate: String? = null,
+    @JsonProperty("fillingDate")
     val fillingDate: String? = null,
     val operatingCashFlow: Double? = null,
     val capitalExpenditure: Double? = null,

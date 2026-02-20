@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
+import org.springframework.web.client.RestClientResponseException
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -49,12 +50,12 @@ class FmpApiClient(private val fmpRestClient: RestClient) {
     fun getHistoricalPrices(symbol: String, from: String, to: String): List<FmpHistoricalPrice> {
         return cached("fmp:hist:$symbol:$from:$to") {
             log.info("[FMP] Fetching daily prices for {} from {} to {}", symbol, from, to)
-            val response = fmpRestClient.get()
+            val prices = fmpRestClient.get()
                 .uri("/stable/historical-price-eod/full?symbol={symbol}&from={from}&to={to}",
                     symbol, from, to)
                 .retrieve()
-                .body(FmpHistoricalPriceResponse::class.java)
-            val prices = response?.historical.orEmpty()
+                .body(object : ParameterizedTypeReference<List<FmpHistoricalPrice>>() {})
+                .orEmpty()
             log.info("[FMP] Received {} daily bars for {}", prices.size, symbol)
             prices
         } ?: emptyList()
@@ -116,6 +117,18 @@ class FmpApiClient(private val fmpRestClient: RestClient) {
             val value = loader()
             cache[key] = (value as Any?) to (now + cacheTtlMs)
             value
+        } catch (e: RestClientResponseException) {
+            val status = e.statusCode.value()
+            val body = e.responseBodyAsString.take(300)
+            if (status == 402 || body.contains("Premium", ignoreCase = true)) {
+                log.error("[FMP] Premium restriction (HTTP {}) for key={}: {}", status, key, body)
+                throw RuntimeException(
+                    "FMP free-tier does not support this symbol/endpoint. " +
+                    "Try the primary share class (e.g. GOOGL instead of GOOG)."
+                )
+            }
+            log.error("[FMP] HTTP {} error for key={}: {}", status, key, body)
+            throw RuntimeException("FMP API error ($status): $body")
         } catch (e: Exception) {
             log.error("[FMP] API call failed for key={}: {}", key, e.message, e)
             throw e

@@ -55,10 +55,15 @@ class BacktestService(
             }
             .sortedBy { it.second }
 
-        log.info("Loaded {} quarterly financials for {} (earliest={}, latest={})",
+        log.info("Loaded {} financials for {} (earliest={}, latest={})",
             allFinancials.size, symbol,
             allFinancials.firstOrNull()?.second ?: "N/A",
             allFinancials.lastOrNull()?.second ?: "N/A")
+
+        // Detect whether data is annual (FY) or quarterly
+        val isAnnual = allFinancials.any { it.first.fiscalPeriod?.uppercase() == "FY" }
+        val windowSize = if (isAnnual) 1 else 4  // annual: each record IS TTM; quarterly: sum 4
+        log.info("Financial data mode: {} (windowSize={})", if (isAnnual) "ANNUAL" else "QUARTERLY", windowSize)
 
         // 3. Company profile
         val profile = provider.getCompanyProfile(symbol)
@@ -90,13 +95,13 @@ class BacktestService(
                 .map { it.first }
                 .sortedByDescending { it.endDate }
 
-            if (availableFinancials.size < 4) {
-                log.debug("Skipping filing date {} — only {} quarters available", filingDate, availableFinancials.size)
+            if (availableFinancials.size < windowSize + 1) {
+                log.debug("Skipping filing date {} — only {} records available (need {})", filingDate, availableFinancials.size, windowSize + 1)
                 continue
             }
 
-            val recentQuarters = availableFinancials.take(4)
-            val priorQuarters = availableFinancials.drop(4).take(4)
+            val recentQuarters = availableFinancials.take(windowSize)
+            val priorQuarters = availableFinancials.drop(windowSize).take(windowSize)
 
             // Find closest trading day on or after filing date
             val tradeDate = sortedDates.firstOrNull { it >= filingDate } ?: continue
