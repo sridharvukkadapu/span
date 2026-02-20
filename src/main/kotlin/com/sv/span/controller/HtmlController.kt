@@ -217,7 +217,7 @@ class HtmlController(
                     <div class="confidence-label">${r.confidence} confidence</div>
                     <div class="pills-row">$pillsHtml</div>
                     <div class="cta-row">
-                        <a class="btn btn-primary" href="/backtest/${r.symbol}">&#9654; View 2-Year Backtest</a>
+                        <a class="btn btn-primary" href="/backtest/${r.symbol}">&#9654; View 5-Year Backtest</a>
                     </div>
                 </div>
 

@@ -1,122 +1,143 @@
 package com.sv.span.service
 
-import com.sv.span.client.MassiveApiClient
-import com.sv.span.client.dto.AggBarDto
-import com.sv.span.client.dto.FinancialsDto
+import com.sv.span.provider.DailyBar
+import com.sv.span.provider.MarketDataProvider
+import com.sv.span.provider.QuarterlyFinancial
 import com.sv.span.model.*
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import kotlin.math.abs
-import kotlin.math.max
 import kotlin.math.round
 
+/**
+ * 5-year backtesting engine.
+ *
+ * Uses the [MarketDataProvider] strategy interface so the data source
+ * (FMP, Massive, etc.) can be swapped via configuration without any
+ * code changes here.
+ */
 @Service
-class BacktestService(private val api: MassiveApiClient) {
+class BacktestService(
+    @Qualifier("backtestMarketDataProvider") private val provider: MarketDataProvider,
+) {
 
     private val log = LoggerFactory.getLogger(javaClass)
-    private val dateFmt = DateTimeFormatter.ISO_LOCAL_DATE
 
-    fun backtest(ticker: String, yearsBack: Int = 2): BacktestResult {
+    fun backtest(ticker: String, yearsBack: Int = 5): BacktestResult {
         val symbol = ticker.uppercase()
         val endDate = LocalDate.now()
         val startDate = endDate.minusYears(yearsBack.toLong())
 
-        log.info("Backtesting {} from {} to {}", symbol, startDate, endDate)
+        log.info("═══════════════════════════════════════════════")
+        log.info("Starting {}-year backtest for {} ({} → {})", yearsBack, symbol, startDate, endDate)
+        log.info("Data provider: {}", provider.providerName)
+        log.info("═══════════════════════════════════════════════")
 
-        // 1. Fetch all daily bars for the period (free plan: max ~2 years)
-        val bars = api.getAggregateRange(symbol, startDate.toString(), endDate.toString())
-        if (bars.isEmpty()) throw RuntimeException("No price data available for $symbol")
+        // 1. Fetch daily bars
+        val bars = provider.getDailyBars(symbol, startDate.toString(), endDate.toString())
+        if (bars.isEmpty()) {
+            log.error("No price data returned by {} for {}", provider.providerName, symbol)
+            throw RuntimeException("No price data available for $symbol from ${provider.providerName}")
+        }
+        log.info("Loaded {} daily bars for {} (first={}, last={})",
+            bars.size, symbol, bars.first().date, bars.last().date)
 
-        // 2. Fetch up to 20 quarters of financials
-        //    Q4 (10-K) filings often have null filing_date — estimate as end_date + 60 days
-        val allFinancials = api.getFinancials(symbol, "quarterly", 20)
+        // 2. Fetch quarterly financials
+        val allFinancials = provider.getQuarterlyFinancials(symbol, 40) // 40 quarters = ~10 years of coverage
             .map { fin ->
                 val effectiveFiling = fin.filingDate
-                    ?: fin.endDate?.let {
-                        LocalDate.parse(it).plusDays(60).toString()
+                    ?: fin.endDate.let {
+                        LocalDate.parse(it).plusDays(60).toString()  // estimate Q4/10-K filing lag
                     }
                 fin to effectiveFiling
             }
-            .filter { it.second != null }
             .sortedBy { it.second }
 
-        // 3. Get company name
-        val details = api.getTickerDetails(symbol)
+        log.info("Loaded {} quarterly financials for {} (earliest={}, latest={})",
+            allFinancials.size, symbol,
+            allFinancials.firstOrNull()?.second ?: "N/A",
+            allFinancials.lastOrNull()?.second ?: "N/A")
 
-        // Build a date-indexed price map (date string -> close price)
-        val barsByDate = bars.associateBy { timestampToDate(it.timestamp!!) }
+        // 3. Company profile
+        val profile = provider.getCompanyProfile(symbol)
+        if (profile == null) {
+            log.error("No company profile found for {} via {}", symbol, provider.providerName)
+            throw RuntimeException("Company profile not available for $symbol")
+        }
+        log.info("Company: {} | Shares outstanding: {}", profile.name, profile.sharesOutstanding)
+
+        // Build date-indexed price map
+        val barsByDate = bars.associateBy { it.date }
         val sortedDates = barsByDate.keys.sorted()
 
-        // 4. At each filing date, run the screening algorithm with data available then
+        // 4. Generate signal events at each filing date
         val filingDates = allFinancials
-            .mapNotNull { it.second }
+            .map { it.second }
             .distinct()
             .filter { it >= startDate.toString() }
             .sorted()
 
-        // We need at least 4 quarters to start screening
-        data class SignalEvent(val date: String, val signal: Signal, val checksSummary: String)
+        log.info("Processing {} filing dates within backtest window", filingDates.size)
 
+        data class SignalEvent(val date: String, val signal: Signal, val checksSummary: String)
         val signalEvents = mutableListOf<SignalEvent>()
 
         for (filingDate in filingDates) {
-            // Get all financials filed on or before this date
             val availableFinancials = allFinancials
-                .filter { it.second != null && it.second!! <= filingDate }
+                .filter { it.second <= filingDate }
                 .map { it.first }
                 .sortedByDescending { it.endDate }
 
-            if (availableFinancials.size < 4) continue // need at least 4 quarters
+            if (availableFinancials.size < 4) {
+                log.debug("Skipping filing date {} — only {} quarters available", filingDate, availableFinancials.size)
+                continue
+            }
 
             val recentQuarters = availableFinancials.take(4)
             val priorQuarters = availableFinancials.drop(4).take(4)
 
-            // Find the closest trading day on or after the filing date
+            // Find closest trading day on or after filing date
             val tradeDate = sortedDates.firstOrNull { it >= filingDate } ?: continue
             val closingPrice = barsByDate[tradeDate]?.close ?: continue
+            val shares = profile.sharesOutstanding ?: continue
 
-            // Compute shares outstanding from financials or details
-            val shares = details?.sharesOutstanding ?: continue
-
-            // Compute metrics using same logic as ScreenerService
-            val ttmRevenue = sumField(recentQuarters, "revenues")
-            val ttmNetIncome = sumField(recentQuarters, "net_income_loss")
-            val ttmEps = if (ttmNetIncome != null && shares > 0) round2(ttmNetIncome / shares) else null
-            val peRatio = if (ttmEps != null && ttmEps > 0) round2(closingPrice / ttmEps) else null
+            // Compute metrics
+            val ttmRevenue = recentQuarters.mapNotNull { it.revenue }.sum().takeIf { it != 0.0 }
+            val ttmNetIncome = recentQuarters.mapNotNull { it.netIncome }.sum()
+            val ttmEps = if (shares > 0) round2(ttmNetIncome / shares) else null
             val marketCap = closingPrice * shares
             val priceToSales = if (ttmRevenue != null && ttmRevenue > 0) round2(marketCap / ttmRevenue) else null
 
             // Margins
-            val totalRevenue = recentQuarters.mapNotNull { incomeField(it, "revenues") }.sum().takeIf { it != 0.0 }
-            val grossProfit = recentQuarters.mapNotNull { incomeField(it, "gross_profit") }.sum()
-            val opIncome = recentQuarters.mapNotNull { incomeField(it, "operating_income_loss") }.sum()
-            val netIncome = recentQuarters.mapNotNull { incomeField(it, "net_income_loss") }.sum()
-            val opCF = recentQuarters.mapNotNull { cashFlowField(it, "net_cash_flow_from_operating_activities") }.sum()
-            val capex = recentQuarters.mapNotNull { cashFlowField(it, "net_cash_flow_from_investing_activities") }.sum()
-            val fcf = opCF + capex
+            val totalRevenue = recentQuarters.mapNotNull { it.revenue }.sum().takeIf { it != 0.0 }
+            val grossProfit = recentQuarters.mapNotNull { it.grossProfit }.sum()
+            val netIncome = recentQuarters.mapNotNull { it.netIncome }.sum()
+            val opCF = recentQuarters.mapNotNull { it.operatingCashFlow }.sum()
+            val capex = recentQuarters.mapNotNull { it.capitalExpenditure }.sum()
+            val fcf = opCF + capex   // capex is typically negative
 
             val grossMargin = safePercent(grossProfit, totalRevenue)
             val profitMargin = safePercent(netIncome, totalRevenue)
             val fcfMargin = if (totalRevenue != null) round2(fcf / totalRevenue * 100) else null
 
-            // Revenue growth
-            val priorRevenue = sumField(priorQuarters, "revenues")
-            val growthYoY = if (ttmRevenue != null && priorRevenue != null && priorRevenue != 0.0) {
+            // Revenue growth (YoY: recent 4Q vs prior 4Q)
+            val priorRevenue = priorQuarters.mapNotNull { it.revenue }.sum().takeIf { it != 0.0 }
+            val growthYoY = if (ttmRevenue != null && priorRevenue != null) {
                 round2((ttmRevenue - priorRevenue) / priorRevenue * 100)
             } else null
 
             // Balance sheet
             val latest = recentQuarters.firstOrNull()
-            val cash = latest?.let { balanceField(it, "other_current_assets") } ?: 0.0
-            val longTermDebt = latest?.let { balanceField(it, "long_term_debt") } ?: 0.0
-            val currentLiabilities = latest?.let { balanceField(it, "current_liabilities") } ?: 0.0
+            val cash = latest?.cashAndEquivalents ?: 0.0
+            val longTermDebt = latest?.longTermDebt ?: 0.0
+            val currentLiabilities = latest?.currentLiabilities ?: 0.0
             val totalDebt = longTermDebt + currentLiabilities
             val cashToDebt = if (totalDebt > 0) round2(cash / totalDebt) else null
 
             // Technicals: compute SMA50 and RSI14 from bars
-            val barsUpToDate = bars.filter { timestampToDate(it.timestamp!!) <= tradeDate }
+            val barsUpToDate = bars.filter { it.date <= tradeDate }
             val sma50 = computeSma(barsUpToDate, 50)
             val rsi14 = computeRsi(barsUpToDate, 14)
 
@@ -194,10 +215,16 @@ class BacktestService(private val api: MassiveApiClient) {
 
             val summary = checks.joinToString(", ") { "${it.first}:${it.second}" }
             signalEvents.add(SignalEvent(tradeDate, signal, summary))
+
+            log.debug("Signal @ {} | price={} | {} → {} | checks: {}",
+                tradeDate, closingPrice, filingDate, signal, summary)
         }
 
-        // Deduplicate: if multiple signals on the same date, keep only the last one
+        log.info("Generated {} raw signal events for {}", signalEvents.size, symbol)
+
+        // Deduplicate: if multiple signals on same date, keep last
         val deduped = signalEvents.groupBy { it.date }.map { (_, events) -> events.last() }.sortedBy { it.date }
+        log.info("After dedup: {} unique signal events", deduped.size)
 
         // 5. Simulate trading
         val initialInvestment = 10000.0
@@ -224,6 +251,7 @@ class BacktestService(private val api: MassiveApiClient) {
                     cash = 0.0
                     trades.add(BacktestTrade("BUY", event.date, price, event.signal, event.checksSummary, sharesHeld, null))
                     signalHistory.add(SignalSnapshot(event.date, price, event.signal, event.checksSummary, "BUY", pChange, pChangePct))
+                    log.info("TRADE BUY  @ {} | price={} | shares={}", event.date, price, round2(sharesHeld))
                 }
                 event.signal == Signal.SELL && inPosition -> {
                     cash = sharesHeld * price
@@ -231,6 +259,7 @@ class BacktestService(private val api: MassiveApiClient) {
                     if (tradeReturn >= 0) winCount++ else lossCount++
                     trades.add(BacktestTrade("SELL", event.date, price, event.signal, event.checksSummary, null, tradeReturn))
                     signalHistory.add(SignalSnapshot(event.date, price, event.signal, event.checksSummary, "SELL", pChange, pChangePct))
+                    log.info("TRADE SELL @ {} | price={} | return={}%", event.date, price, tradeReturn)
                     sharesHeld = 0.0
                     entryPrice = 0.0
                 }
@@ -248,17 +277,13 @@ class BacktestService(private val api: MassiveApiClient) {
             prevPrice = price
         }
 
-        // If still holding at end, mark-to-market
+        // Mark-to-market if still holding
         val lastPrice = bars.lastOrNull()?.close ?: 0.0
-        val lastDate = bars.lastOrNull()?.let { timestampToDate(it.timestamp!!) } ?: endDate.toString()
+        val lastDate = bars.lastOrNull()?.date ?: endDate.toString()
 
-        val strategyFinal = if (sharesHeld > 0.0) {
-            sharesHeld * lastPrice
-        } else {
-            cash
-        }
+        val strategyFinal = if (sharesHeld > 0.0) sharesHeld * lastPrice else cash
 
-        // Buy-and-hold: invest all on first bar
+        // Buy-and-hold benchmark
         val firstPrice = bars.firstOrNull()?.close ?: 1.0
         val bAndHShares = initialInvestment / firstPrice
         val buyAndHoldFinal = round2(bAndHShares * lastPrice)
@@ -266,52 +291,22 @@ class BacktestService(private val api: MassiveApiClient) {
         val strategyReturn = round2((strategyFinal - initialInvestment) / initialInvestment * 100)
         val buyAndHoldReturn = round2((buyAndHoldFinal - initialInvestment) / initialInvestment * 100)
 
-        // Build equity curve (sample at each signal event + monthly)
-        val equityCurve = mutableListOf<EquityPoint>()
-        // Sample monthly for chart
-        var simCash = initialInvestment
-        var simShares = 0.0
-        var tradeIdx = 0
-
-        val monthlyDates = sortedDates.filterIndexed { i, _ -> i % 21 == 0 } // ~monthly
-        for (d in monthlyDates) {
-            val p = barsByDate[d]?.close ?: continue
-            // Apply any trades that happened on or before this date
-            while (tradeIdx < trades.size && trades[tradeIdx].date <= d) {
-                val t = trades[tradeIdx]
-                if (t.type == "BUY") {
-                    simShares = simCash / t.price
-                    simCash = 0.0
-                } else {
-                    simCash = simShares * t.price
-                    simShares = 0.0
-                }
-                tradeIdx++
-            }
-            val stratVal = if (simShares > 0) round2(simShares * p) else round2(simCash)
-            val bAndHVal = round2(bAndHShares * p)
-            equityCurve.add(EquityPoint(d, stratVal, bAndHVal))
-        }
+        // Build equity curve (~monthly sampling)
+        val equityCurve = buildEquityCurve(sortedDates, barsByDate, trades, initialInvestment, bAndHShares)
 
         val totalTrades = trades.size
         val winRate = if (winCount + lossCount > 0) round2(winCount.toDouble() / (winCount + lossCount) * 100) else null
 
-        val summary = buildString {
-            append("$symbol backtest: ${startDate} to ${lastDate}. ")
-            append("Strategy returned ${strategyReturn}% vs buy-and-hold ${buyAndHoldReturn}%. ")
-            if (totalTrades == 0) {
-                append("No trades executed — all signals were HOLD so capital stayed in cash.")
-            } else {
-                append("$totalTrades trades, ")
-                if (winRate != null) append("${winRate}% win rate. ")
-                if (strategyReturn > buyAndHoldReturn) append("Strategy OUTPERFORMED by ${round2(strategyReturn - buyAndHoldReturn)}%.")
-                else append("Strategy UNDERPERFORMED by ${round2(buyAndHoldReturn - strategyReturn)}%.")
-            }
-        }
+        val summary = buildSummary(symbol, startDate.toString(), lastDate, strategyReturn, buyAndHoldReturn, totalTrades, winRate)
+
+        log.info("═══════════════════════════════════════════════")
+        log.info("Backtest complete for {} | Strategy: {}% | B&H: {}% | Trades: {}",
+            symbol, strategyReturn, buyAndHoldReturn, totalTrades)
+        log.info("═══════════════════════════════════════════════")
 
         return BacktestResult(
             symbol = symbol,
-            companyName = details?.name,
+            companyName = profile.name,
             periodStart = startDate.toString(),
             periodEnd = lastDate,
             initialInvestment = initialInvestment,
@@ -331,56 +326,87 @@ class BacktestService(private val api: MassiveApiClient) {
         )
     }
 
-    // ---- Compute SMA from bars ----
-    private fun computeSma(bars: List<AggBarDto>, window: Int): Double? {
+    // ---- Equity curve builder ----
+
+    private fun buildEquityCurve(
+        sortedDates: List<String>,
+        barsByDate: Map<String, DailyBar>,
+        trades: List<BacktestTrade>,
+        initialInvestment: Double,
+        bAndHShares: Double,
+    ): List<EquityPoint> {
+        val equityCurve = mutableListOf<EquityPoint>()
+        var simCash = initialInvestment
+        var simShares = 0.0
+        var tradeIdx = 0
+
+        val monthlyDates = sortedDates.filterIndexed { i, _ -> i % 21 == 0 }
+        for (d in monthlyDates) {
+            val p = barsByDate[d]?.close ?: continue
+            while (tradeIdx < trades.size && trades[tradeIdx].date <= d) {
+                val t = trades[tradeIdx]
+                if (t.type == "BUY") {
+                    simShares = simCash / t.price
+                    simCash = 0.0
+                } else {
+                    simCash = simShares * t.price
+                    simShares = 0.0
+                }
+                tradeIdx++
+            }
+            val stratVal = if (simShares > 0) round2(simShares * p) else round2(simCash)
+            val bAndHVal = round2(bAndHShares * p)
+            equityCurve.add(EquityPoint(d, stratVal, bAndHVal))
+        }
+        return equityCurve
+    }
+
+    // ---- Summary builder ----
+
+    private fun buildSummary(
+        symbol: String, start: String, end: String,
+        strategyReturn: Double, buyAndHoldReturn: Double,
+        totalTrades: Int, winRate: Double?,
+    ): String = buildString {
+        append("$symbol backtest: $start to $end. ")
+        append("Strategy returned ${strategyReturn}% vs buy-and-hold ${buyAndHoldReturn}%. ")
+        if (totalTrades == 0) {
+            append("No trades executed — all signals were HOLD so capital stayed in cash.")
+        } else {
+            append("$totalTrades trades, ")
+            if (winRate != null) append("${winRate}% win rate. ")
+            val diff = round2(strategyReturn - buyAndHoldReturn)
+            if (diff >= 0) append("Strategy OUTPERFORMED by ${diff}%.")
+            else append("Strategy UNDERPERFORMED by ${round2(buyAndHoldReturn - strategyReturn)}%.")
+        }
+    }
+
+    // ---- Technical indicator computation ----
+
+    private fun computeSma(bars: List<DailyBar>, window: Int): Double? {
         if (bars.size < window) return null
-        val closes = bars.takeLast(window).mapNotNull { it.close }
-        if (closes.size < window) return null
+        val closes = bars.takeLast(window).map { it.close }
         return round2(closes.average())
     }
 
-    // ---- Compute RSI from bars ----
-    private fun computeRsi(bars: List<AggBarDto>, period: Int): Double? {
+    private fun computeRsi(bars: List<DailyBar>, period: Int): Double? {
         if (bars.size < period + 1) return null
-        val closes = bars.mapNotNull { it.close }
-        if (closes.size < period + 1) return null
-
+        val closes = bars.map { it.close }
         val changes = (1 until closes.size).map { closes[it] - closes[it - 1] }
         val recentChanges = changes.takeLast(period)
 
-        var avgGain = recentChanges.filter { it > 0 }.average().takeIf { !it.isNaN() } ?: 0.0
-        var avgLoss = recentChanges.filter { it < 0 }.map { abs(it) }.average().takeIf { !it.isNaN() } ?: 0.0
+        val avgGain = recentChanges.filter { it > 0 }.average().takeIf { !it.isNaN() } ?: 0.0
+        val avgLoss = recentChanges.filter { it < 0 }.map { abs(it) }.average().takeIf { !it.isNaN() } ?: 0.0
 
         if (avgLoss == 0.0) return 100.0
         val rs = avgGain / avgLoss
         return round2(100 - (100 / (1 + rs)))
     }
 
-    // ---- Field extractors (same as ScreenerService) ----
-
-    private fun incomeField(fin: FinancialsDto, field: String): Double? =
-        fin.financials?.incomeStatement?.get(field)?.value
-
-    private fun balanceField(fin: FinancialsDto, field: String): Double? =
-        fin.financials?.balanceSheet?.get(field)?.value
-
-    private fun cashFlowField(fin: FinancialsDto, field: String): Double? =
-        fin.financials?.cashFlowStatement?.get(field)?.value
-
-    private fun sumField(quarters: List<FinancialsDto>, field: String): Double? {
-        val values = quarters.mapNotNull { incomeField(it, field) }
-        return if (values.isNotEmpty()) values.sum() else null
-    }
+    // ---- Utilities ----
 
     private fun safePercent(num: Double?, denom: Double?): Double? =
         if (num != null && denom != null && denom != 0.0) round2(num / denom * 100) else null
 
     private fun round2(v: Double): Double = round(v * 100) / 100
-
-    private fun timestampToDate(ts: Long): String {
-        return java.time.Instant.ofEpochMilli(ts)
-            .atZone(java.time.ZoneId.of("America/New_York"))
-            .toLocalDate()
-            .toString()
-    }
 }
