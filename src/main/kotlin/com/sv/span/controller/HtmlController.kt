@@ -2,6 +2,7 @@ package com.sv.span.controller
 
 import com.sv.span.cache.TickerCacheService
 import com.sv.span.model.*
+import com.sv.span.service.AnalyzerService
 import com.sv.span.service.BacktestService
 import com.sv.span.service.ScreenerService
 import org.springframework.http.MediaType
@@ -17,6 +18,7 @@ import java.time.Instant
 class HtmlController(
     private val screenerService: ScreenerService,
     private val backtestService: BacktestService,
+    private val analyzerService: AnalyzerService,
     private val cacheService: TickerCacheService,
 ) {
 
@@ -236,7 +238,8 @@ class HtmlController(
                     <div class="confidence-label">${r.confidence} confidence</div>
                     <div class="pills-row">$pillsHtml</div>
                     <div class="cta-row">
-                        <a class="btn btn-primary" href="/backtest/${r.symbol}">&#9654; View 5-Year Backtest</a>
+                        <a class="btn btn-primary" href="/backtest/${r.symbol}">&#9654; 5-Year Backtest</a>
+                        <a class="btn btn-primary" href="/analyzer/${r.symbol}">&#9733; Stock Analyzer</a>
                     </div>
                 </div>
 
@@ -581,7 +584,8 @@ class HtmlController(
             <div class="container">
                 $cacheIndicator
                 <div class="nav">
-                    <a href="/view/${r.symbol}">&larr; Back to Screener</a>
+                    <a href="/view/${r.symbol}">&larr; Screener</a>
+                    <a href="/analyzer/${r.symbol}">&#9733; Analyzer</a>
                     <span class="nav-brand">SPAN</span>
                 </div>
 
@@ -802,6 +806,427 @@ class HtmlController(
             }
             "<span class=\"ck $cls\">$name</span>"
         }
+    }
+
+    // ======================== STOCK ANALYZER VIEW ========================
+
+    @GetMapping("/analyzer/{symbol}", produces = [MediaType.TEXT_HTML_VALUE])
+    @ResponseBody
+    fun viewAnalyzer(
+        @PathVariable symbol: String,
+        @RequestParam(defaultValue = "false") refresh: Boolean,
+    ): String {
+        return try {
+            if (refresh) cacheService.evict(symbol)
+            val wasCached = cacheService.isCached("analyzer", symbol)
+            val data = analyzerService.analyze(symbol)
+            val cacheEntry = cacheService.getEntry("analyzer", symbol)
+            renderAnalyzerHtml(data, wasCached, cacheEntry, "/analyzer/${symbol.uppercase()}")
+        } catch (e: Exception) {
+            errorHtml(symbol, e.message ?: "Unknown error")
+        }
+    }
+
+    private fun renderAnalyzerHtml(
+        data: com.sv.span.model.AnalyzerData,
+        wasCached: Boolean,
+        cacheEntry: TickerCacheService.CacheEntry?,
+        refreshUrl: String,
+    ): String {
+        val cacheIndicator = buildCacheIndicator(wasCached, cacheEntry, refreshUrl)
+        val dollar = "$"
+
+        val bear = data.scenarios.getOrNull(0)
+        val base = data.scenarios.getOrNull(1)
+        val bull = data.scenarios.getOrNull(2)
+
+        return """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${data.symbol} Analyzer &middot; Span</title>
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+            <style>
+                :root {
+                    --bg: #0f1117; --surface: #1a1d27; --surface-2: #242836;
+                    --border: rgba(255,255,255,0.06); --border-2: rgba(255,255,255,0.1);
+                    --text: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #64748b;
+                    --accent: #6366f1; --accent-2: #818cf8;
+                    --green: #10b981; --green-dim: rgba(16,185,129,0.12);
+                    --red: #ef4444; --red-dim: rgba(239,68,68,0.12);
+                    --yellow: #f59e0b; --yellow-dim: rgba(245,158,11,0.12);
+                }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+                .container { max-width: 960px; margin: 0 auto; padding: 24px 20px 64px; }
+
+                /* Nav */
+                .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 0 4px; }
+                .nav a { color: var(--accent-2); text-decoration: none; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+                .nav a:hover { color: #a78bfa; }
+                .nav-brand { font-size: 16px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px; }
+
+                /* Hero */
+                .hero { text-align: center; padding: 48px 24px 44px; margin-bottom: 28px; background: linear-gradient(180deg, rgba(99,102,241,0.08) 0%, transparent 100%); border-radius: 24px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+                .hero::before { content: ''; position: absolute; top: -60%; left: -20%; width: 140%; height: 120%; background: radial-gradient(circle at 50% 0%, rgba(99,102,241,0.1) 0%, transparent 60%); pointer-events: none; }
+                .hero-ticker { font-size: 14px; font-weight: 700; letter-spacing: 3px; color: var(--accent-2); }
+                .hero-title { font-size: 32px; font-weight: 900; color: #fff; margin-top: 4px; }
+                .hero-sub { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+                .hero-price { font-size: 40px; font-weight: 900; color: #fff; margin-top: 12px; font-variant-numeric: tabular-nums; }
+                .hero-meta { display: flex; justify-content: center; gap: 24px; margin-top: 12px; font-size: 13px; color: var(--text-secondary); }
+                .hero-meta span { display: flex; align-items: center; gap: 4px; }
+
+                /* Card */
+                .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 20px; overflow: hidden; transition: border-color 0.2s; }
+                .card:hover { border-color: var(--border-2); }
+                .card-header { padding: 18px 24px 0; display: flex; justify-content: space-between; align-items: center; }
+                .card-header h2 { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+                .card-icon { font-size: 17px; }
+                .card-body { padding: 16px 24px 20px; }
+
+                /* Metrics */
+                .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+                .metric-cell { padding: 16px 0; border-bottom: 1px solid var(--border); }
+                .metric-cell:nth-child(3n+2) { text-align: center; }
+                .metric-cell:nth-child(3n) { text-align: right; }
+                .metric-label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+                .metric-value { font-size: 20px; font-weight: 700; color: #fff; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+                /* Scenario Table */
+                .scenario-table { width: 100%; border-collapse: collapse; }
+                .scenario-table th { text-align: center; padding: 12px 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-2); }
+                .scenario-table th:first-child { text-align: left; }
+                .scenario-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+                .scenario-table td:first-child { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+                .th-bear { color: var(--red); }
+                .th-base { color: var(--accent-2); }
+                .th-bull { color: var(--green); }
+                .scenario-input { background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 8px; color: #fff; font-size: 14px; font-weight: 600; text-align: center; padding: 10px 6px; width: 100%; font-family: 'Inter', sans-serif; font-variant-numeric: tabular-nums; outline: none; transition: border-color 0.2s; }
+                .scenario-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+                .separator-row td { padding: 4px 0; border-bottom: 2px solid var(--border-2); }
+
+                /* Results */
+                .results-hero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+                .result-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px 20px; text-align: center; transition: border-color 0.2s, transform 0.2s; }
+                .result-card:hover { border-color: var(--border-2); transform: translateY(-2px); }
+                .result-card.bear-card { border-top: 3px solid var(--red); }
+                .result-card.base-card { border-top: 3px solid var(--accent); }
+                .result-card.bull-card { border-top: 3px solid var(--green); }
+                .result-emoji { font-size: 32px; }
+                .result-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 4px; }
+                .result-fv { font-size: 32px; font-weight: 900; color: #fff; margin-top: 8px; font-variant-numeric: tabular-nums; }
+                .result-upside { font-size: 16px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+                .verdict { display: inline-block; padding: 4px 18px; border-radius: 8px; font-size: 13px; font-weight: 800; letter-spacing: 1px; margin-top: 10px; }
+                .verdict-buy { background: var(--green-dim); color: var(--green); }
+                .verdict-sell { background: var(--red-dim); color: var(--red); }
+                .verdict-hold { background: var(--yellow-dim); color: var(--yellow); }
+
+                /* Detail table */
+                .detail-table { width: 100%; border-collapse: collapse; }
+                .detail-table th { text-align: center; padding: 10px 8px; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid var(--border-2); }
+                .detail-table th:first-child { text-align: left; }
+                .detail-table td { padding: 12px 8px; font-size: 14px; color: var(--text); border-bottom: 1px solid var(--border); text-align: center; font-variant-numeric: tabular-nums; font-weight: 500; }
+                .detail-table td:first-child { text-align: left; color: var(--text-secondary); font-weight: 600; font-size: 13px; }
+                .detail-table tr.highlight-row td { font-weight: 800; color: #fff; background: rgba(99,102,241,0.06); }
+
+                /* Current price line */
+                .current-price-bar { text-align: center; padding: 14px; background: var(--surface-2); border-radius: 10px; margin-bottom: 20px; }
+                .current-price-bar span { font-size: 14px; color: var(--text-muted); }
+                .current-price-bar strong { color: #fff; font-size: 18px; font-weight: 800; margin-left: 8px; }
+
+                /* Disclaimer */
+                .disclaimer { margin-top: 20px; padding: 16px 20px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+                .disclaimer strong { color: var(--yellow); }
+
+                /* Search */
+                .search-bar { display: flex; justify-content: center; margin: 32px 0 0; }
+                .search-bar form { display: flex; gap: 8px; }
+                .search-bar input { padding: 10px 18px; background: var(--surface); border: 1px solid var(--border-2); border-radius: 10px; color: var(--text); font-size: 14px; width: 140px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px; outline: none; transition: border-color 0.2s; font-family: 'Inter', sans-serif; }
+                .search-bar input:focus { border-color: var(--accent); }
+                .search-bar input::placeholder { color: var(--text-muted); }
+                .search-bar button { padding: 10px 24px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; font-family: 'Inter', sans-serif; }
+                .search-bar button:hover { background: #4f46e5; }
+
+                /* Footer */
+                .footer { text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); }
+                .footer-brand { font-size: 18px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px; }
+                .footer-sub { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+                .footer-sub a { color: var(--text-muted); text-decoration: none; }
+                .footer-sub a:hover { color: var(--accent-2); }
+
+                @media (max-width: 700px) {
+                    .results-hero { grid-template-columns: 1fr; }
+                    .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+                    .metric-cell:nth-child(3n+2), .metric-cell:nth-child(3n) { text-align: left; }
+                    .hero-price { font-size: 30px; }
+                    .hero-title { font-size: 24px; }
+                    .hero-meta { flex-direction: column; gap: 4px; }
+                    .scenario-table th, .scenario-table td { padding: 8px 4px; font-size: 12px; }
+                    .scenario-input { font-size: 13px; padding: 8px 4px; }
+                    .result-fv { font-size: 24px; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                $cacheIndicator
+                <div class="nav">
+                    <a href="/view/${data.symbol}">&larr; Screener</a>
+                    <a href="/backtest/${data.symbol}">&#9654; Backtest</a>
+                    <span class="nav-brand">SPAN</span>
+                </div>
+
+                <div class="hero">
+                    <div class="hero-ticker">${data.symbol} STOCK ANALYZER</div>
+                    <div class="hero-title">${data.companyName ?: data.symbol}</div>
+                    <div class="hero-price">${data.currentPriceFormatted ?: "N/A"}</div>
+                    <div class="hero-meta">
+                        <span>Mkt Cap: ${data.marketCapFormatted ?: "N/A"}</span>
+                        <span>Shares: ${data.sharesFormatted ?: "N/A"}</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2><span class="card-icon">&#128202;</span> Historical Metrics (TTM)</h2></div>
+                    <div class="card-body">
+                        <div class="metrics-grid">
+                            <div class="metric-cell"><div class="metric-label">Revenue Growth</div><div class="metric-value">${data.revenueGrowthFormatted ?: "N/A"}</div></div>
+                            <div class="metric-cell"><div class="metric-label">Profit Margin</div><div class="metric-value">${data.profitMarginFormatted ?: "N/A"}</div></div>
+                            <div class="metric-cell"><div class="metric-label">FCF Margin</div><div class="metric-value">${data.fcfMarginFormatted ?: "N/A"}</div></div>
+                            <div class="metric-cell"><div class="metric-label">ROIC</div><div class="metric-value">${data.roicFormatted ?: "N/A"}</div></div>
+                            <div class="metric-cell"><div class="metric-label">P/E Ratio</div><div class="metric-value">${data.currentPEFormatted ?: "N/A"}</div></div>
+                            <div class="metric-cell"><div class="metric-label">P/FCF</div><div class="metric-value">${data.currentPFCFFormatted ?: "N/A"}</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2><span class="card-icon">&#128176;</span> TTM Financials</h2></div>
+                    <div class="card-body">
+                        <div class="metrics-grid">
+                            <div class="metric-cell"><div class="metric-label">Revenue</div><div class="metric-value">${data.ttmRevenueFormatted ?: "N/A"}</div></div>
+                            <div class="metric-cell"><div class="metric-label">Net Income</div><div class="metric-value">${data.ttmNetIncomeFormatted ?: "N/A"}</div></div>
+                            <div class="metric-cell"><div class="metric-label">Free Cash Flow</div><div class="metric-value">${data.ttmFcfFormatted ?: "N/A"}</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2><span class="card-icon">&#128295;</span> Scenario Assumptions</h2></div>
+                    <div class="card-body">
+                        <table class="scenario-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:28%">Metric</th>
+                                    <th class="th-bear" style="width:24%">&#128059; Bear</th>
+                                    <th class="th-base" style="width:24%">&#128202; Base</th>
+                                    <th class="th-bull" style="width:24%">&#128002; Bull</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Revenue Growth %</td>
+                                    <td><input type="number" id="growth_bear" value="${bear?.revenueGrowthPct ?: 3.0}" step="0.1" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="growth_base" value="${base?.revenueGrowthPct ?: 5.0}" step="0.1" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="growth_bull" value="${bull?.revenueGrowthPct ?: 8.0}" step="0.1" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr>
+                                    <td>Profit Margin %</td>
+                                    <td><input type="number" id="margin_bear" value="${bear?.profitMarginPct ?: 12.0}" step="0.1" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="margin_base" value="${base?.profitMarginPct ?: 15.0}" step="0.1" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="margin_bull" value="${bull?.profitMarginPct ?: 18.0}" step="0.1" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr>
+                                    <td>FCF Margin %</td>
+                                    <td><input type="number" id="fcf_bear" value="${bear?.fcfMarginPct ?: 10.0}" step="0.1" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="fcf_base" value="${base?.fcfMarginPct ?: 12.0}" step="0.1" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="fcf_bull" value="${bull?.fcfMarginPct ?: 15.0}" step="0.1" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr>
+                                    <td>P/E Multiple</td>
+                                    <td><input type="number" id="pe_bear" value="${bear?.peMultiple ?: 15.0}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="pe_base" value="${base?.peMultiple ?: 20.0}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="pe_bull" value="${bull?.peMultiple ?: 28.0}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr>
+                                    <td>P/FCF Multiple</td>
+                                    <td><input type="number" id="pfcf_bear" value="${bear?.pfcfMultiple ?: 12.0}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="pfcf_base" value="${base?.pfcfMultiple ?: 18.0}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="pfcf_bull" value="${bull?.pfcfMultiple ?: 25.0}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr class="separator-row"><td colspan="4"></td></tr>
+                                <tr>
+                                    <td>Projection Years</td>
+                                    <td><input type="number" id="years_bear" value="${bear?.years ?: 5}" step="1" min="1" max="20" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="years_base" value="${base?.years ?: 5}" step="1" min="1" max="20" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="years_bull" value="${bull?.years ?: 5}" step="1" min="1" max="20" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr>
+                                    <td>Desired Return %</td>
+                                    <td><input type="number" id="return_bear" value="${bear?.desiredReturnPct ?: 15.0}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="return_base" value="${base?.desiredReturnPct ?: 10.0}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="return_bull" value="${bull?.desiredReturnPct ?: 8.0}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="current-price-bar">
+                    <span>Current Price</span>
+                    <strong>${data.currentPriceFormatted ?: "N/A"}</strong>
+                </div>
+
+                <div class="results-hero" id="results_cards">
+                    <div class="result-card bear-card">
+                        <div class="result-emoji">&#128059;</div>
+                        <div class="result-label">Bear</div>
+                        <div class="result-fv" id="fv_bear">&mdash;</div>
+                        <div class="result-upside" id="upside_bear">&mdash;</div>
+                        <div id="verdict_bear"></div>
+                    </div>
+                    <div class="result-card base-card">
+                        <div class="result-emoji">&#128202;</div>
+                        <div class="result-label">Base</div>
+                        <div class="result-fv" id="fv_base">&mdash;</div>
+                        <div class="result-upside" id="upside_base">&mdash;</div>
+                        <div id="verdict_base"></div>
+                    </div>
+                    <div class="result-card bull-card">
+                        <div class="result-emoji">&#128002;</div>
+                        <div class="result-label">Bull</div>
+                        <div class="result-fv" id="fv_bull">&mdash;</div>
+                        <div class="result-upside" id="upside_bull">&mdash;</div>
+                        <div id="verdict_bull"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2><span class="card-icon">&#128200;</span> Detailed Breakdown</h2></div>
+                    <div class="card-body">
+                        <table class="detail-table">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left">Metric</th>
+                                    <th>&#128059; Bear</th>
+                                    <th>&#128202; Base</th>
+                                    <th>&#128002; Bull</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Future Revenue</td><td id="d_rev_bear">&mdash;</td><td id="d_rev_base">&mdash;</td><td id="d_rev_bull">&mdash;</td></tr>
+                                <tr><td>Future Earnings</td><td id="d_earn_bear">&mdash;</td><td id="d_earn_base">&mdash;</td><td id="d_earn_bull">&mdash;</td></tr>
+                                <tr><td>Future EPS</td><td id="d_eps_bear">&mdash;</td><td id="d_eps_base">&mdash;</td><td id="d_eps_bull">&mdash;</td></tr>
+                                <tr><td>Future FCF</td><td id="d_fcf_bear">&mdash;</td><td id="d_fcf_base">&mdash;</td><td id="d_fcf_bull">&mdash;</td></tr>
+                                <tr><td>Future FCF / Share</td><td id="d_fcfps_bear">&mdash;</td><td id="d_fcfps_base">&mdash;</td><td id="d_fcfps_bull">&mdash;</td></tr>
+                                <tr><td>Fair Value (P/E)</td><td id="d_fvpe_bear">&mdash;</td><td id="d_fvpe_base">&mdash;</td><td id="d_fvpe_bull">&mdash;</td></tr>
+                                <tr><td>Fair Value (P/FCF)</td><td id="d_fvfcf_bear">&mdash;</td><td id="d_fvfcf_base">&mdash;</td><td id="d_fvfcf_bull">&mdash;</td></tr>
+                                <tr class="highlight-row"><td>Average Fair Value</td><td id="d_fvavg_bear">&mdash;</td><td id="d_fvavg_base">&mdash;</td><td id="d_fvavg_bull">&mdash;</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="disclaimer">
+                    <strong>&#9888; Disclaimer:</strong> This analyzer is for educational and informational purposes only.
+                    Fair value estimates are based on simplified DCF projections using user-provided assumptions. They do not constitute financial advice.
+                    Past performance and current metrics do not guarantee future results. Always do your own research.
+                </div>
+
+                <div class="search-bar">
+                    <form onsubmit="window.location='/analyzer/'+document.getElementById('t').value.toUpperCase();return false;">
+                        <input id="t" type="text" placeholder="TICKER" maxlength="5">
+                        <button type="submit">Analyze</button>
+                    </form>
+                </div>
+
+                <div class="footer">
+                    <div class="footer-brand">SPAN</div>
+                    <div class="footer-sub">Powered by <a href="https://github.com/sridharvukkadapu/span">Span Screener</a> &middot; Data from Massive.com</div>
+                </div>
+            </div>
+
+            <script>
+                var CURRENT_PRICE = ${data.currentPrice ?: 0.0};
+                var TTM_REVENUE = ${data.ttmRevenue ?: 0.0};
+                var SHARES = ${data.sharesOutstanding ?: 1.0};
+
+                function val_or(id, fallback) {
+                    var v = parseFloat(document.getElementById(id).value);
+                    return isNaN(v) ? fallback : v;
+                }
+
+                function fmtLarge(v) {
+                    if (v == null || isNaN(v)) return 'N/A';
+                    var a = Math.abs(v), s = v < 0 ? '-' : '';
+                    if (a >= 1e12) return s + '${dollar}' + (a/1e12).toFixed(2) + 'T';
+                    if (a >= 1e9) return s + '${dollar}' + (a/1e9).toFixed(2) + 'B';
+                    if (a >= 1e6) return s + '${dollar}' + (a/1e6).toFixed(2) + 'M';
+                    if (a >= 1e3) return s + '${dollar}' + (a/1e3).toFixed(1) + 'K';
+                    return s + '${dollar}' + a.toFixed(2);
+                }
+
+                function fmtPrice(v) {
+                    if (v == null || isNaN(v)) return 'N/A';
+                    return (v < 0 ? '-' : '') + '${dollar}' + Math.abs(v).toFixed(2);
+                }
+
+                function calculate() {
+                    var scenarios = ['bear', 'base', 'bull'];
+                    for (var i = 0; i < scenarios.length; i++) {
+                        var s = scenarios[i];
+                        var growth = val_or('growth_' + s, 5) / 100;
+                        var margin = val_or('margin_' + s, 15) / 100;
+                        var fcfMgn = val_or('fcf_' + s, 12) / 100;
+                        var pe = val_or('pe_' + s, 20);
+                        var pfcf = val_or('pfcf_' + s, 18);
+                        var years = val_or('years_' + s, 5);
+                        var dReturn = val_or('return_' + s, 10) / 100;
+
+                        var futureRev = TTM_REVENUE * Math.pow(1 + growth, years);
+                        var futureEarn = futureRev * margin;
+                        var futureEPS = futureEarn / SHARES;
+                        var futureFCF = futureRev * fcfMgn;
+                        var futureFCFPS = futureFCF / SHARES;
+
+                        var futurePricePE = futureEPS * pe;
+                        var futurePriceFCF = futureFCFPS * pfcf;
+
+                        var fvPE = futurePricePE / Math.pow(1 + dReturn, years);
+                        var fvFCF = futurePriceFCF / Math.pow(1 + dReturn, years);
+                        var fvAvg = (fvPE + fvFCF) / 2;
+
+                        var upside = CURRENT_PRICE > 0 ? ((fvAvg - CURRENT_PRICE) / CURRENT_PRICE * 100) : 0;
+
+                        document.getElementById('fv_' + s).textContent = fmtPrice(fvAvg);
+                        var uEl = document.getElementById('upside_' + s);
+                        uEl.textContent = (upside >= 0 ? '+' : '') + upside.toFixed(1) + '%';
+                        uEl.style.color = upside >= 0 ? '#10b981' : '#ef4444';
+
+                        var vEl = document.getElementById('verdict_' + s);
+                        if (upside > 15) { vEl.innerHTML = '<span class=\"verdict verdict-buy\">BUY</span>'; }
+                        else if (upside < -15) { vEl.innerHTML = '<span class=\"verdict verdict-sell\">SELL</span>'; }
+                        else { vEl.innerHTML = '<span class=\"verdict verdict-hold\">HOLD</span>'; }
+
+                        document.getElementById('d_rev_' + s).textContent = fmtLarge(futureRev);
+                        document.getElementById('d_earn_' + s).textContent = fmtLarge(futureEarn);
+                        document.getElementById('d_eps_' + s).textContent = fmtPrice(futureEPS);
+                        document.getElementById('d_fcf_' + s).textContent = fmtLarge(futureFCF);
+                        document.getElementById('d_fcfps_' + s).textContent = fmtPrice(futureFCFPS);
+                        document.getElementById('d_fvpe_' + s).textContent = fmtPrice(fvPE);
+                        document.getElementById('d_fvfcf_' + s).textContent = fmtPrice(fvFCF);
+                        document.getElementById('d_fvavg_' + s).textContent = fmtPrice(fvAvg);
+                    }
+                }
+
+                calculate();
+            </script>
+        </body>
+        </html>
+        """.trimIndent()
     }
 
     // ======================== CACHE INDICATOR ========================
