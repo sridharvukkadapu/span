@@ -193,17 +193,30 @@ class ScreenerService(
     private fun buildBalanceSummary(latest: FinancialsDto?): BalanceSheetSummary {
         if (latest == null) return BalanceSheetSummary(null, null, null, null)
 
-        val currentAssets = balanceField(latest, "other_current_assets") ?: 0.0
-        val cash = currentAssets // includes cash & short-term investments in this schema
+        // Cash proxy: prefer "other_current_assets", fall back to "current_assets"
+        // (banks like SOFI don't report granular current-asset breakdowns)
+        val cash = balanceField(latest, "other_current_assets")
+            ?: balanceField(latest, "current_assets")
+            ?: 0.0
+
         val longTermDebt = balanceField(latest, "long_term_debt")
         val currentLiabilities = balanceField(latest, "current_liabilities") ?: 0.0
-        // Total debt approximation: long-term debt + current liabilities (includes short-term debt)
-        val totalDebt = (longTermDebt ?: 0.0) + currentLiabilities
+        val noncurrentLiabilities = balanceField(latest, "noncurrent_liabilities") ?: 0.0
+
+        // Total debt: long-term debt + current liabilities; fall back to "liabilities"
+        val totalDebt = if (longTermDebt != null) {
+            longTermDebt + currentLiabilities
+        } else if (noncurrentLiabilities > 0) {
+            noncurrentLiabilities + currentLiabilities
+        } else {
+            balanceField(latest, "liabilities") ?: 0.0
+        }
+
         val cashToDebt = if (totalDebt > 0) round2(cash / totalDebt) else null
 
         return BalanceSheetSummary(
             cashAndShortTermInvestments = cash.takeIf { it != 0.0 },
-            longTermDebt = longTermDebt,
+            longTermDebt = longTermDebt ?: noncurrentLiabilities.takeIf { it != 0.0 },
             totalDebt = totalDebt.takeIf { it != 0.0 },
             cashToDebtRatio = cashToDebt,
         )
