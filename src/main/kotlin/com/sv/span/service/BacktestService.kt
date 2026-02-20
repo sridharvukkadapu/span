@@ -60,10 +60,13 @@ class BacktestService(
             allFinancials.firstOrNull()?.second ?: "N/A",
             allFinancials.lastOrNull()?.second ?: "N/A")
 
-        // Detect whether data is annual (FY) or quarterly
-        val isAnnual = allFinancials.any { it.first.fiscalPeriod?.uppercase() == "FY" }
-        val windowSize = if (isAnnual) 1 else 4  // annual: each record IS TTM; quarterly: sum 4
-        log.info("Financial data mode: {} (windowSize={})", if (isAnnual) "ANNUAL" else "QUARTERLY", windowSize)
+        // With composite data we may have a mix of annual (FY) and quarterly records.
+        // Per-evaluation windowSize is determined dynamically in the signal loop.
+        val hasAnnual = allFinancials.any { it.first.fiscalPeriod?.uppercase() == "FY" }
+        val hasQuarterly = allFinancials.any { it.first.fiscalPeriod?.uppercase()?.startsWith("Q") == true }
+        log.info("Financial data: {} annual + {} quarterly records",
+            allFinancials.count { it.first.fiscalPeriod?.uppercase() == "FY" },
+            allFinancials.count { it.first.fiscalPeriod?.uppercase()?.startsWith("Q") == true })
 
         // 3. Company profile
         val profile = provider.getCompanyProfile(symbol)
@@ -95,9 +98,30 @@ class BacktestService(
                 .map { it.first }
                 .sortedByDescending { it.endDate }
 
-            if (availableFinancials.size < windowSize + 1) {
-                log.debug("Skipping filing date {} — only {} records available (need {})", filingDate, availableFinancials.size, windowSize + 1)
+            if (availableFinancials.size < 2) {
+                log.debug("Skipping filing date {} — only {} records available", filingDate, availableFinancials.size)
                 continue
+            }
+
+            // Determine windowSize dynamically: if top record is annual (FY), use 1;
+            // if quarterly and we have 4+, use 4; otherwise skip.
+            val topPeriod = availableFinancials.first().fiscalPeriod?.uppercase()
+            val windowSize = when {
+                topPeriod == "FY" -> 1
+                topPeriod?.startsWith("Q") == true && availableFinancials.size >= 5 -> 4
+                topPeriod?.startsWith("Q") == true && availableFinancials.size >= 2 -> {
+                    // Not enough quarterly data for full TTM, but we have at least 2 records
+                    // Use however many consecutive quarters we have (up to 4)
+                    val consecutiveQuarters = availableFinancials
+                        .takeWhile { it.fiscalPeriod?.uppercase()?.startsWith("Q") == true }
+                        .size
+                        .coerceAtMost(4)
+                    if (consecutiveQuarters >= 2) consecutiveQuarters else {
+                        log.debug("Skipping {} — only {} consecutive quarters", filingDate, consecutiveQuarters)
+                        continue
+                    }
+                }
+                else -> 1  // fallback
             }
 
             val recentQuarters = availableFinancials.take(windowSize)
