@@ -14,7 +14,7 @@ class MassiveApiClient(private val massiveRestClient: RestClient) {
 
     // Simple in-memory cache: key -> (value, expiresAtMillis)
     private val cache = ConcurrentHashMap<String, Pair<Any?, Long>>()
-    private val cacheTtlMs = 5 * 60 * 1000L // 5 minutes
+    private val cacheTtlMs = 24 * 60 * 60 * 1000L // 24 hours — EOD data is static intraday
 
     fun getTickerDetails(ticker: String): TickerDetailsDto? = cached("details:$ticker") {
         log.info("Fetching ticker details for {}", ticker)

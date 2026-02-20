@@ -1,5 +1,6 @@
 package com.sv.span.service
 
+import com.sv.span.cache.TickerCacheService
 import com.sv.span.provider.DailyBar
 import com.sv.span.provider.MarketDataProvider
 import com.sv.span.provider.QuarterlyFinancial
@@ -17,15 +18,24 @@ import kotlin.math.round
  * Uses the [MarketDataProvider] strategy interface so the data source
  * (FMP, Massive, etc.) can be swapped via configuration without any
  * code changes here.
+ *
+ * Results are cached per-ticker for 24 hours by [TickerCacheService]
+ * since EOD data is static intraday.
  */
 @Service
 class BacktestService(
     @Qualifier("backtestMarketDataProvider") private val provider: MarketDataProvider,
+    private val cacheService: TickerCacheService,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun backtest(ticker: String, yearsBack: Int = 5): BacktestResult {
+    fun backtest(ticker: String, yearsBack: Int = 5): BacktestResult =
+        cacheService.getOrCompute("backtest", ticker.uppercase()) {
+            computeBacktest(ticker, yearsBack)
+        }
+
+    private fun computeBacktest(ticker: String, yearsBack: Int): BacktestResult {
         val symbol = ticker.uppercase()
         val endDate = LocalDate.now()
         val startDate = endDate.minusYears(yearsBack.toLong())

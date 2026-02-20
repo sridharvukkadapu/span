@@ -1,5 +1,6 @@
 package com.sv.span.service
 
+import com.sv.span.cache.TickerCacheService
 import com.sv.span.client.MassiveApiClient
 import com.sv.span.client.dto.FinancialsDto
 import com.sv.span.model.*
@@ -9,11 +10,19 @@ import kotlin.math.abs
 import kotlin.math.round
 
 @Service
-class ScreenerService(private val api: MassiveApiClient) {
+class ScreenerService(
+    private val api: MassiveApiClient,
+    private val cacheService: TickerCacheService,
+) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun analyze(ticker: String): ScreenerResult {
+    fun analyze(ticker: String): ScreenerResult =
+        cacheService.getOrCompute("screener", ticker.uppercase()) {
+            computeAnalysis(ticker)
+        }
+
+    private fun computeAnalysis(ticker: String): ScreenerResult {
         val symbol = ticker.uppercase()
 
         // Fetch data from 5 API calls (was 6 — merged annual into quarterly)

@@ -1,5 +1,6 @@
 package com.sv.span.controller
 
+import com.sv.span.cache.TickerCacheService
 import com.sv.span.model.*
 import com.sv.span.service.BacktestService
 import com.sv.span.service.ScreenerService
@@ -7,28 +8,45 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseBody
+import java.time.Duration
+import java.time.Instant
 
 @Controller
 class HtmlController(
     private val screenerService: ScreenerService,
     private val backtestService: BacktestService,
+    private val cacheService: TickerCacheService,
 ) {
 
     // ======================== SCREENER VIEW ========================
 
     @GetMapping("/view/{symbol}", produces = [MediaType.TEXT_HTML_VALUE])
     @ResponseBody
-    fun viewRecommendation(@PathVariable symbol: String): String {
+    fun viewRecommendation(
+        @PathVariable symbol: String,
+        @RequestParam(defaultValue = "false") refresh: Boolean,
+    ): String {
         return try {
+            if (refresh) cacheService.evict(symbol)
+            val wasCached = cacheService.isCached("screener", symbol)
             val r = screenerService.analyze(symbol)
-            renderHtml(r)
+            val cacheEntry = cacheService.getEntry("screener", symbol)
+            renderHtml(r, wasCached, cacheEntry, "/view/${symbol.uppercase()}")
         } catch (e: Exception) {
             errorHtml(symbol, e.message ?: "Unknown error")
         }
     }
 
-    private fun renderHtml(r: ScreenerResult): String {
+    private fun renderHtml(
+        r: ScreenerResult,
+        wasCached: Boolean = false,
+        cacheEntry: TickerCacheService.CacheEntry? = null,
+        refreshUrl: String = "",
+    ): String {
+        val cacheIndicator = buildCacheIndicator(wasCached, cacheEntry, refreshUrl)
+
         val signalBg = when (r.signal) {
             Signal.BUY -> "linear-gradient(135deg, #065f46, #047857)"
             Signal.SELL -> "linear-gradient(135deg, #991b1b, #dc2626)"
@@ -210,6 +228,7 @@ class HtmlController(
         </head>
         <body>
             <div class="container">
+                $cacheIndicator
                 <div class="hero">
                     <div class="hero-ticker">${r.symbol}</div>
                     <div class="hero-company">${r.companyName ?: r.symbol}</div>
@@ -336,16 +355,29 @@ class HtmlController(
 
     @GetMapping("/backtest/{symbol}", produces = [MediaType.TEXT_HTML_VALUE])
     @ResponseBody
-    fun viewBacktest(@PathVariable symbol: String): String {
+    fun viewBacktest(
+        @PathVariable symbol: String,
+        @RequestParam(defaultValue = "false") refresh: Boolean,
+    ): String {
         return try {
+            if (refresh) cacheService.evict(symbol)
+            val wasCached = cacheService.isCached("backtest", symbol)
             val r = backtestService.backtest(symbol)
-            renderBacktestHtml(r)
+            val cacheEntry = cacheService.getEntry("backtest", symbol)
+            renderBacktestHtml(r, wasCached, cacheEntry, "/backtest/${symbol.uppercase()}")
         } catch (e: Exception) {
             errorHtml(symbol, e.message ?: "Unknown error")
         }
     }
 
-    private fun renderBacktestHtml(r: BacktestResult): String {
+    private fun renderBacktestHtml(
+        r: BacktestResult,
+        wasCached: Boolean = false,
+        cacheEntry: TickerCacheService.CacheEntry? = null,
+        refreshUrl: String = "",
+    ): String {
+        val cacheIndicator = buildCacheIndicator(wasCached, cacheEntry, refreshUrl)
+
         val noTrades = r.totalTrades == 0
         val badgeText = if (noTrades) "NO TRADES EXECUTED"
                         else if (r.outperformance >= 0) "OUTPERFORMED by ${r.outperformanceFormatted}"
@@ -547,6 +579,7 @@ class HtmlController(
         </head>
         <body>
             <div class="container">
+                $cacheIndicator
                 <div class="nav">
                     <a href="/view/${r.symbol}">&larr; Back to Screener</a>
                     <span class="nav-brand">SPAN</span>
@@ -769,5 +802,32 @@ class HtmlController(
             }
             "<span class=\"ck $cls\">$name</span>"
         }
+    }
+
+    // ======================== CACHE INDICATOR ========================
+
+    private fun buildCacheIndicator(
+        wasCached: Boolean,
+        cacheEntry: TickerCacheService.CacheEntry?,
+        refreshUrl: String,
+    ): String {
+        if (!wasCached || cacheEntry == null) return ""
+        val age = formatAge(Duration.between(cacheEntry.computedAt, Instant.now()))
+        return """
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 0;font-size:12px;color:#94a3b8;">
+            <span style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px;">
+                &#9889; Cached &middot; $age ago &middot; ${cacheEntry.computeTimeMs}ms
+                <a href="$refreshUrl?refresh=true"
+                   style="color:#38bdf8;text-decoration:none;margin-left:4px;"
+                   title="Refresh — fetch fresh data from APIs">&#8635; Refresh</a>
+            </span>
+        </div>
+        """
+    }
+
+    private fun formatAge(d: Duration): String = when {
+        d.toHours() >= 1 -> "${d.toHours()}h ${d.toMinutesPart()}m"
+        d.toMinutes() >= 1 -> "${d.toMinutes()}m"
+        else -> "${d.seconds}s"
     }
 }

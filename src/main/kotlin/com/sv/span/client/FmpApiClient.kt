@@ -21,7 +21,7 @@ class FmpApiClient(private val fmpRestClient: RestClient) {
 
     // Simple in-memory TTL cache (same pattern as MassiveApiClient)
     private val cache = ConcurrentHashMap<String, Pair<Any?, Long>>()
-    private val cacheTtlMs = 5 * 60 * 1000L // 5 minutes
+    private val cacheTtlMs = 24 * 60 * 60 * 1000L // 24 hours — EOD data is static intraday
 
     // ---- Company Profile ----
 
