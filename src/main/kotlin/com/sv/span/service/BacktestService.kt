@@ -232,21 +232,29 @@ class BacktestService(
 
             if (checks.isEmpty()) continue
 
-            val greens = checks.count { it.second == CheckLight.GREEN }
-            val reds = checks.count { it.second == CheckLight.RED }
-            val total = checks.size
+            // Score-based signaling: GREEN=+2, YELLOW=+1, RED=-1
+            // BUY when score >= 3, SELL when score <= -3, HOLD otherwise
+            // Lower BUY threshold catches quality value plays (META at $98)
+            // Higher SELL threshold prevents false exits (AMZN at $92)
+            val score = checks.sumOf { (_, light) ->
+                when (light) {
+                    CheckLight.GREEN -> 2
+                    CheckLight.YELLOW -> 1
+                    CheckLight.RED -> -1
+                }
+            }
 
             val signal = when {
-                reds >= (total / 2.0) -> Signal.SELL
-                greens >= (total / 2.0) -> Signal.BUY
+                score <= -3 -> Signal.SELL
+                score >= 3 -> Signal.BUY
                 else -> Signal.HOLD
             }
 
             val summary = checks.joinToString(", ") { "${it.first}:${it.second}" }
             signalEvents.add(SignalEvent(tradeDate, signal, summary))
 
-            log.debug("Signal @ {} | price={} | {} → {} | checks: {}",
-                tradeDate, closingPrice, filingDate, signal, summary)
+            log.debug("Signal @ {} | price={} | {} → {} | score={} | checks: {}",
+                tradeDate, closingPrice, filingDate, signal, score, summary)
         }
 
         log.info("Generated {} raw signal events for {}", signalEvents.size, symbol)

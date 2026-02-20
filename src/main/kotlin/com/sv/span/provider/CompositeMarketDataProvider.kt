@@ -26,11 +26,21 @@ class CompositeMarketDataProvider(
     override val providerName: String = "Composite (Massive+FMP)"
 
     /**
-     * Daily bars: use FMP for the full range (5 years available on free tier).
+     * Daily bars: try FMP first (5 years), fall back to Massive if FMP fails (e.g. 402).
      */
     override fun getDailyBars(symbol: String, from: String, to: String): List<DailyBar> {
-        log.info("[Composite] Fetching daily bars from FMP for {} ({} → {})", symbol, from, to)
-        return fmpProvider.getDailyBars(symbol, from, to)
+        return try {
+            log.info("[Composite] Fetching daily bars from FMP for {} ({} → {})", symbol, from, to)
+            val bars = fmpProvider.getDailyBars(symbol, from, to)
+            if (bars.isNotEmpty()) bars
+            else {
+                log.warn("[Composite] FMP returned empty bars for {}, falling back to Massive", symbol)
+                massiveProvider.getDailyBars(symbol, from, to)
+            }
+        } catch (e: Exception) {
+            log.warn("[Composite] FMP daily bars failed for {} ({}), falling back to Massive", symbol, e.message)
+            massiveProvider.getDailyBars(symbol, from, to)
+        }
     }
 
     /**
@@ -100,10 +110,16 @@ class CompositeMarketDataProvider(
     }
 
     /**
-     * Company profile: use FMP (more reliable shares outstanding data).
+     * Company profile: try FMP first, fall back to Massive if FMP fails (e.g. 402).
      */
     override fun getCompanyProfile(symbol: String): CompanyProfile? {
-        log.info("[Composite] Fetching company profile from FMP for {}", symbol)
-        return fmpProvider.getCompanyProfile(symbol)
+        return try {
+            log.info("[Composite] Fetching company profile from FMP for {}", symbol)
+            fmpProvider.getCompanyProfile(symbol)
+                ?: massiveProvider.getCompanyProfile(symbol)
+        } catch (e: Exception) {
+            log.warn("[Composite] FMP profile failed for {} ({}), falling back to Massive", symbol, e.message)
+            massiveProvider.getCompanyProfile(symbol)
+        }
     }
 }
