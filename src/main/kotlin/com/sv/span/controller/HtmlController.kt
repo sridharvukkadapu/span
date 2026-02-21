@@ -1197,7 +1197,12 @@ class HtmlController(
 
                         var fvPE = futurePricePE / Math.pow(1 + dReturn, years);
                         var fvFCF = futurePriceFCF / Math.pow(1 + dReturn, years);
-                        var fvAvg = (fvPE + fvFCF) / 2;
+                        // Smart averaging: only include methods with positive fair values
+                        var fvAvg;
+                        if (fvPE > 0 && fvFCF > 0) { fvAvg = (fvPE + fvFCF) / 2; }
+                        else if (fvPE > 0) { fvAvg = fvPE; }
+                        else if (fvFCF > 0) { fvAvg = fvFCF; }
+                        else { fvAvg = 0; }
 
                         var upside = CURRENT_PRICE > 0 ? ((fvAvg - CURRENT_PRICE) / CURRENT_PRICE * 100) : 0;
 

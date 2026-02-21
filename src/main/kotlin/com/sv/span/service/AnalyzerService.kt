@@ -133,9 +133,19 @@ class AnalyzerService(
     ): List<ScenarioDefaults> {
         val g = revenueGrowth ?: 5.0
         val pm = profitMargin ?: 15.0
-        val fm = fcfMargin ?: 12.0
+        // For banks/financials, investing CF includes loan originations making FCF
+        // meaningless. Clamp to a sensible range so pre-filled defaults are usable.
+        val fm = when {
+            fcfMargin == null -> 12.0
+            fcfMargin < -50.0 || fcfMargin > 80.0 -> 12.0  // clearly distorted
+            else -> fcfMargin
+        }
         val pe = currentPE ?: 20.0
-        val pfcf = currentPFCF ?: 18.0
+        val pfcf = when {
+            currentPFCF == null -> 18.0
+            currentPFCF > 200.0 -> 18.0  // extreme P/FCF is meaningless
+            else -> currentPFCF
+        }
 
         return listOf(
             ScenarioDefaults(
