@@ -5,6 +5,17 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 /**
+ * Health check — returns instantly, used by external pingers (UptimeRobot)
+ * to keep the Render free-tier instance alive.
+ */
+@RestController
+class HealthController {
+    @GetMapping("/health")
+    fun health(): ResponseEntity<Map<String, Any>> =
+        ResponseEntity.ok(mapOf("status" to "up", "ts" to System.currentTimeMillis()))
+}
+
+/**
  * Cache management API for diagnostics and manual refresh.
  */
 @RestController
