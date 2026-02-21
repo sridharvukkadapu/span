@@ -234,6 +234,7 @@ class ScreenerService(
         checkMargins(margins),
         checkPriceToSales(overview, revenue, margins),
         checkRevenueGrowth(revenue),
+        checkProfitability(overview),
         checkCashDebtRatio(balance),
         checkTechnicals(technicals, overview.price),
     )
@@ -242,6 +243,8 @@ class ScreenerService(
         val gm = m.grossMargin ?: return null
         val pm = m.profitMargin
         val (light, detail) = when {
+            // High gross margin but deeply negative profit margin → company burns cash despite good product economics
+            gm >= 50 && pm != null && pm < -20 -> CheckLight.YELLOW to "Gross margin ${gm}% strong, but profit margin ${pm}% deeply negative"
             gm >= 50 -> CheckLight.GREEN to "Gross margin ${gm}% >= 50%"
             gm > 30 && (pm != null && pm > 10) -> CheckLight.YELLOW to "Gross margin ${gm}% (30-50%), profit margin ${pm}%"
             else -> CheckLight.RED to "Gross margin ${gm}% <= 30%"
@@ -263,14 +266,28 @@ class ScreenerService(
         return CheckResult("Price/Sales", light, detail)
     }
 
-    private fun checkRevenueGrowth(revenue: RevenueAnalysis): CheckResult? {
-        val growth = revenue.revenueGrowthYoY ?: return null
+    private fun checkRevenueGrowth(revenue: RevenueAnalysis): CheckResult {
+        val growth = revenue.revenueGrowthYoY
+            ?: return CheckResult("Revenue Growth", CheckLight.YELLOW, "Insufficient data for YoY comparison")
         val (light, detail) = when {
             growth >= 20 -> CheckLight.GREEN to "Revenue growth ${growth}% >= 20%"
             growth >= 10 -> CheckLight.YELLOW to "Revenue growth ${growth}% (10-20%)"
             else -> CheckLight.RED to "Revenue growth ${growth}% < 10%"
         }
         return CheckResult("Revenue Growth", light, detail)
+    }
+
+    private fun checkProfitability(overview: Overview): CheckResult {
+        val pe = overview.peRatio
+        val eps = overview.epsTtm
+        return when {
+            pe != null && pe in 5.0..35.0 -> CheckResult("Profitability", CheckLight.GREEN, "P/E ${pe} in healthy range (5-35)")
+            pe != null && pe in 35.0..60.0 -> CheckResult("Profitability", CheckLight.YELLOW, "P/E ${pe} elevated (35-60)")
+            pe != null && pe > 60.0 -> CheckResult("Profitability", CheckLight.RED, "P/E ${pe} very high (>60)")
+            pe != null && pe > 0 && pe < 5.0 -> CheckResult("Profitability", CheckLight.YELLOW, "P/E ${pe} unusually low (<5)")
+            eps != null && eps < 0 -> CheckResult("Profitability", CheckLight.RED, "Not profitable — EPS $eps")
+            else -> CheckResult("Profitability", CheckLight.YELLOW, "Earnings data unavailable")
+        }
     }
 
     private fun checkCashDebtRatio(balance: BalanceSheetSummary): CheckResult? {

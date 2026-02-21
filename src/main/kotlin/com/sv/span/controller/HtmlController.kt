@@ -177,7 +177,7 @@ class HtmlController(
                 .card-body { padding: 16px 24px 20px; }
 
                 /* ---- CHECKS ---- */
-                .checks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+                .checks-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
                 .check-card { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 10px; }
                 .check-icon { font-size: 16px; font-weight: 700; flex-shrink: 0; margin-top: 1px; width: 22px; text-align: center; }
                 .check-body { flex: 1; min-width: 0; }
