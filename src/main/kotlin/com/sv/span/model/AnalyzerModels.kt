@@ -41,6 +41,9 @@ data class AnalyzerData(
 
     // Pre-filled scenario defaults
     val scenarios: List<ScenarioDefaults>,
+
+    // True when company is currently unprofitable — scenarios model path-to-profitability
+    val turnaroundMode: Boolean = false,
 ) {
     // Formatted helpers for the HTML view
     val currentPriceFormatted: String? get() = currentPrice?.let { "$${aFmt2(it)}" }

@@ -1014,6 +1014,16 @@ class HtmlController(
                     </div>
                 </div>
 
+                ${if (data.turnaroundMode) """
+                <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:flex-start;gap:12px;">
+                    <span style="font-size:20px;line-height:1;">&#9888;</span>
+                    <div>
+                        <div style="font-size:13px;font-weight:700;color:#f59e0b;margin-bottom:4px;">Turnaround Mode</div>
+                        <div style="font-size:12px;color:#94a3b8;line-height:1.5;">This company is currently unprofitable (profit margin ${data.profitMarginFormatted ?: "N/A"}, FCF margin ${data.fcfMarginFormatted ?: "N/A"}). Scenarios below model a <strong style="color:#e2e8f0;">path to profitability</strong> with target margins rather than scaling current negative values. A longer projection horizon (7 years) is used to allow time for the turnaround. Adjust inputs to match your thesis.</div>
+                    </div>
+                </div>
+                """ else ""}
+
                 <div class="card">
                     <div class="card-header"><h2><span class="card-icon">&#128295;</span> Scenario Assumptions</h2></div>
                     <div class="card-body">

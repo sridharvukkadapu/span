@@ -115,14 +115,19 @@ class AnalyzerService(
             currentPE = currentPE,
             currentPFCF = currentPFCF,
             scenarios = scenarios,
+            turnaroundMode = (profitMargin ?: 15.0) < 0,
         )
     }
 
     /**
      * Build Bear / Base / Bull scenario defaults from historical metrics.
      *
-     * Base uses actual TTM values. Bear reduces growth/margins, Bull
-     * increases them. Multiples compress in Bear and expand in Bull.
+     * Base uses actual TTM values (adjusted for unprofitable companies).
+     * Bear reduces growth/margins, Bull increases them.
+     * Multiples compress in Bear and expand in Bull.
+     *
+     * For unprofitable companies (negative margins), scenarios model a
+     * path-to-profitability rather than scaling the negative margin down.
      */
     private fun buildScenarios(
         revenueGrowth: Double?,
@@ -132,10 +137,10 @@ class AnalyzerService(
         currentPFCF: Double?,
     ): List<ScenarioDefaults> {
         val g = revenueGrowth ?: 5.0
-        val pm = profitMargin ?: 15.0
+        val rawPm = profitMargin ?: 15.0
         // For banks/financials, investing CF includes loan originations making FCF
         // meaningless. Clamp to a sensible range so pre-filled defaults are usable.
-        val fm = when {
+        val rawFm = when {
             fcfMargin == null -> 12.0
             fcfMargin < -50.0 || fcfMargin > 80.0 -> 12.0  // clearly distorted
             else -> fcfMargin
@@ -147,35 +152,66 @@ class AnalyzerService(
             else -> currentPFCF
         }
 
+        // For unprofitable companies, model a path-to-profitability:
+        // Bull = most optimistic turnaround, Bear = slower/weaker turnaround
+        val isUnprofitable = rawPm < 0
+        val pmBear: Double
+        val pmBase: Double
+        val pmBull: Double
+        val fmBear: Double
+        val fmBase: Double
+        val fmBull: Double
+
+        if (isUnprofitable) {
+            // Model turnaround scenarios with positive target margins
+            // Use industry-average targets since current margins are meaningless for projection
+            pmBear = 5.0    // barely profitable in bear case
+            pmBase = 10.0   // moderate profitability
+            pmBull = 18.0   // strong turnaround
+            fmBear = 3.0    // minimal FCF generation
+            fmBase = 8.0    // moderate FCF
+            fmBull = 15.0   // strong FCF conversion
+        } else {
+            pmBear = round2(rawPm * 0.85)
+            pmBase = round2(rawPm)
+            pmBull = round2(rawPm * 1.1)
+            fmBear = round2(rawFm * 0.85)
+            fmBase = round2(rawFm)
+            fmBull = round2(rawFm * 1.1)
+        }
+
+        // Unprofitable companies need longer projection horizon for turnaround
+        val yearsBase = if (isUnprofitable) 7 else 5
+
         return listOf(
             ScenarioDefaults(
                 label = "Bear",
                 revenueGrowthPct = round2(g * 0.5).coerceAtLeast(0.0),
-                profitMarginPct = round2(pm * 0.85),
-                fcfMarginPct = round2(fm * 0.85),
+                profitMarginPct = pmBear,
+                fcfMarginPct = fmBear,
                 peMultiple = round2(pe * 0.7),
                 pfcfMultiple = round2(pfcf * 0.7),
-                years = 5,
+                years = yearsBase,
                 desiredReturnPct = 15.0,
             ),
             ScenarioDefaults(
                 label = "Base",
                 revenueGrowthPct = round2(g),
-                profitMarginPct = round2(pm),
-                fcfMarginPct = round2(fm),
+                profitMarginPct = pmBase,
+                fcfMarginPct = fmBase,
                 peMultiple = round2(pe),
                 pfcfMultiple = round2(pfcf),
-                years = 5,
+                years = yearsBase,
                 desiredReturnPct = 10.0,
             ),
             ScenarioDefaults(
                 label = "Bull",
                 revenueGrowthPct = round2(g * 1.4),
-                profitMarginPct = round2(pm * 1.1),
-                fcfMarginPct = round2(fm * 1.1),
+                profitMarginPct = pmBull,
+                fcfMarginPct = fmBull,
                 peMultiple = round2(pe * 1.3),
                 pfcfMultiple = round2(pfcf * 1.3),
-                years = 5,
+                years = yearsBase,
                 desiredReturnPct = 8.0,
             ),
         )
