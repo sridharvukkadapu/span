@@ -4,6 +4,7 @@ import com.sv.span.cache.TickerCacheService
 import com.sv.span.model.*
 import com.sv.span.service.AnalyzerService
 import com.sv.span.service.BacktestService
+import com.sv.span.service.DashboardService
 import com.sv.span.service.ScreenerService
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Controller
@@ -20,6 +21,7 @@ class HtmlController(
     private val backtestService: BacktestService,
     private val analyzerService: AnalyzerService,
     private val cacheService: TickerCacheService,
+    private val dashboardService: DashboardService,
 ) {
 
     // ======================== SCREENER VIEW ========================
@@ -240,6 +242,7 @@ class HtmlController(
                     <div class="cta-row">
                         <a class="btn btn-primary" href="/backtest/${r.symbol}">&#9654; 5-Year Backtest</a>
                         <a class="btn btn-primary" href="/analyzer/${r.symbol}">&#9733; Stock Analyzer</a>
+                        <a class="btn btn-primary" href="/dashboard" style="background:linear-gradient(135deg,#f59e0b,#f97316);">&#127942; Top 25</a>
                     </div>
                 </div>
 
@@ -586,6 +589,7 @@ class HtmlController(
                 <div class="nav">
                     <a href="/view/${r.symbol}">&larr; Screener</a>
                     <a href="/analyzer/${r.symbol}">&#9733; Analyzer</a>
+                    <a href="/dashboard">&#127942; Top 25</a>
                     <span class="nav-brand">SPAN</span>
                 </div>
 
@@ -976,6 +980,7 @@ class HtmlController(
                 <div class="nav">
                     <a href="/view/${data.symbol}">&larr; Screener</a>
                     <a href="/backtest/${data.symbol}">&#9654; Backtest</a>
+                    <a href="/dashboard">&#127942; Top 25</a>
                     <span class="nav-brand">SPAN</span>
                 </div>
 
@@ -1238,6 +1243,287 @@ class HtmlController(
                 }
 
                 calculate();
+            </script>
+        </body>
+        </html>
+        """.trimIndent()
+    }
+
+    // ======================== DASHBOARD VIEW ========================
+
+    @GetMapping("/dashboard", produces = [MediaType.TEXT_HTML_VALUE])
+    @ResponseBody
+    fun viewDashboard(): String {
+        return renderDashboardHtml()
+    }
+
+    private fun renderDashboardHtml(): String {
+        val top = dashboardService.topN(25)
+        val status = dashboardService.status()
+        val dollar = "$"
+
+        val pctScanned = if (status.universeSize > 0)
+            (status.scannedCount * 100.0 / status.universeSize).let { String.format("%.0f", it) }
+        else "0"
+
+        val progressColor = when {
+            status.scannedCount >= status.universeSize -> "#10b981"
+            status.scannedCount > 0 -> "#6366f1"
+            else -> "#64748b"
+        }
+
+        val progressPct = if (status.universeSize > 0)
+            (status.scannedCount * 100.0 / status.universeSize).coerceAtMost(100.0)
+        else 0.0
+
+        // Build rows
+        val rowsHtml = if (top.isEmpty()) {
+            """
+            <tr>
+                <td colspan="10" style="text-align:center;padding:48px 20px;color:#64748b;font-size:14px;">
+                    <div style="font-size:32px;margin-bottom:12px;">&#9202;</div>
+                    Scanning in progress&hellip; first results will appear shortly.
+                    <div style="font-size:12px;margin-top:8px;color:#475569;">The scanner processes 1 ticker per minute to stay within API rate limits.</div>
+                </td>
+            </tr>
+            """
+        } else {
+            top.mapIndexed { i, scored ->
+                val r = scored.result
+                val greens = r.checks.count { it.light == CheckLight.GREEN }
+                val reds = r.checks.count { it.light == CheckLight.RED }
+                val rank = i + 1
+
+                val (signalBg, signalColor) = when (r.signal) {
+                    Signal.BUY -> "rgba(16,185,129,0.12)" to "#10b981"
+                    Signal.SELL -> "rgba(239,68,68,0.12)" to "#ef4444"
+                    Signal.HOLD -> "rgba(245,158,11,0.12)" to "#f59e0b"
+                }
+
+                val rankBadge = when {
+                    rank == 1 -> "<span style=\"font-size:18px;\">&#129351;</span>" // gold medal
+                    rank == 2 -> "<span style=\"font-size:18px;\">&#129352;</span>" // silver
+                    rank == 3 -> "<span style=\"font-size:18px;\">&#129353;</span>" // bronze
+                    else -> "<span style=\"color:#64748b;font-weight:700;\">#$rank</span>"
+                }
+
+                val scoreColor = when {
+                    scored.score >= 15 -> "#10b981"
+                    scored.score >= 8 -> "#6366f1"
+                    scored.score >= 0 -> "#f59e0b"
+                    else -> "#ef4444"
+                }
+
+                val checksPills = r.checks.joinToString("") { c ->
+                    val color = when (c.light) {
+                        CheckLight.GREEN -> "#10b981"
+                        CheckLight.YELLOW -> "#f59e0b"
+                        CheckLight.RED -> "#ef4444"
+                    }
+                    "<span style=\"display:inline-block;width:8px;height:8px;border-radius:50%;background:$color;margin-right:2px;\" title=\"${c.name}: ${c.detail}\"></span>"
+                }
+
+                val age = scored.scannedAt.let { Duration.between(it, Instant.now()) }.let { formatAge(it) }
+
+                """
+                <tr class="stock-row" onclick="window.location='/view/${r.symbol}'" style="cursor:pointer;">
+                    <td style="text-align:center;width:50px;">$rankBadge</td>
+                    <td>
+                        <div style="font-weight:700;color:#fff;font-size:14px;">${r.symbol}</div>
+                        <div style="font-size:11px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.companyName ?: ""}</div>
+                    </td>
+                    <td style="text-align:center;">
+                        <span style="display:inline-block;padding:3px 12px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.8px;background:$signalBg;color:$signalColor;">${r.signal}</span>
+                        <div style="font-size:10px;color:#64748b;margin-top:2px;">${r.confidence}</div>
+                    </td>
+                    <td style="text-align:center;font-weight:800;color:$scoreColor;font-size:16px;font-variant-numeric:tabular-nums;">${scored.score}</td>
+                    <td style="text-align:center;line-height:1;">$checksPills<div style="font-size:10px;color:#64748b;margin-top:3px;">${greens}G ${reds}R</div></td>
+                    <td style="text-align:right;font-weight:600;color:#fff;font-variant-numeric:tabular-nums;">${r.overview.priceFormatted ?: "—"}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;">${r.overview.marketCapFormatted ?: "—"}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;">${r.overview.peRatioFormatted ?: "—"}</td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;">${r.margins.grossMarginFormatted ?: "—"}</td>
+                    <td style="text-align:right;font-size:11px;color:#475569;">${age} ago</td>
+                </tr>
+                """
+            }.joinToString("")
+        }
+
+        return """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Top 25 Stocks &middot; Span Dashboard</title>
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+            <style>
+                :root {
+                    --bg: #0f1117; --surface: #1a1d27; --surface-2: #242836;
+                    --border: rgba(255,255,255,0.06); --border-2: rgba(255,255,255,0.1);
+                    --text: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #64748b;
+                    --accent: #6366f1; --accent-2: #818cf8;
+                    --green: #10b981; --red: #ef4444; --yellow: #f59e0b;
+                }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+                .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px 64px; }
+
+                /* Hero */
+                .hero { text-align: center; padding: 48px 24px 36px; margin-bottom: 24px; background: linear-gradient(180deg, rgba(99,102,241,0.08) 0%, transparent 100%); border-radius: 24px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+                .hero::before { content: ''; position: absolute; top: -60%; left: -20%; width: 140%; height: 120%; background: radial-gradient(circle at 50% 0%, rgba(99,102,241,0.1) 0%, transparent 60%); pointer-events: none; }
+                .hero-brand { font-size: 14px; font-weight: 700; letter-spacing: 3px; color: var(--accent-2); }
+                .hero-title { font-size: 36px; font-weight: 900; color: #fff; margin-top: 4px; }
+                .hero-sub { font-size: 13px; color: var(--text-muted); margin-top: 8px; max-width: 500px; margin-left: auto; margin-right: auto; }
+
+                /* Progress */
+                .progress-wrap { margin: 24px auto 0; max-width: 400px; }
+                .progress-bar { width: 100%; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+                .progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+                .progress-text { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+                /* Stats row */
+                .stats-row { display: flex; justify-content: center; gap: 32px; margin-top: 16px; flex-wrap: wrap; }
+                .stat-item { text-align: center; }
+                .stat-value { font-size: 22px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+                .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
+
+                /* Card */
+                .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+
+                /* Table */
+                .stock-table { width: 100%; border-collapse: collapse; }
+                .stock-table th { padding: 12px 10px; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 2px solid var(--border-2); text-align: right; }
+                .stock-table th:first-child,
+                .stock-table th:nth-child(2),
+                .stock-table th:nth-child(3),
+                .stock-table th:nth-child(4),
+                .stock-table th:nth-child(5) { text-align: center; }
+                .stock-table td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); vertical-align: middle; }
+                .stock-row { transition: background 0.15s; }
+                .stock-row:hover { background: rgba(99,102,241,0.06); }
+
+                /* Search bar */
+                .search-bar { display: flex; justify-content: center; margin: 32px 0 0; }
+                .search-bar form { display: flex; gap: 8px; }
+                .search-bar input { padding: 10px 18px; background: var(--surface); border: 1px solid var(--border-2); border-radius: 10px; color: var(--text); font-size: 14px; width: 140px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px; outline: none; transition: border-color 0.2s; font-family: 'Inter', sans-serif; }
+                .search-bar input:focus { border-color: var(--accent); }
+                .search-bar input::placeholder { color: var(--text-muted); }
+                .search-bar button { padding: 10px 24px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; font-family: 'Inter', sans-serif; }
+                .search-bar button:hover { background: #4f46e5; }
+
+                /* Footer */
+                .footer { text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); }
+                .footer-brand { font-size: 18px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px; }
+                .footer-sub { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+                .footer-sub a { color: var(--text-muted); text-decoration: none; }
+                .footer-sub a:hover { color: var(--accent-2); }
+
+                /* Pulse dot */
+                @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+                .pulse-dot { display:inline-block; width:8px; height:8px; border-radius:50%; animation: pulse 2s ease-in-out infinite; }
+
+                /* Responsive */
+                @media (max-width: 800px) {
+                    .hero-title { font-size: 24px; }
+                    .stock-table th:nth-child(7),
+                    .stock-table td:nth-child(7),
+                    .stock-table th:nth-child(8),
+                    .stock-table td:nth-child(8),
+                    .stock-table th:nth-child(9),
+                    .stock-table td:nth-child(9),
+                    .stock-table th:nth-child(10),
+                    .stock-table td:nth-child(10) { display: none; }
+                    .stats-row { gap: 16px; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="hero">
+                    <div class="hero-brand">SPAN DASHBOARD</div>
+                    <div class="hero-title">&#127942; Top 25 Stocks to Buy</div>
+                    <div class="hero-sub">
+                        Auto-scanned from a universe of ${status.universeSize} stocks. The scanner evaluates 1 stock per minute using 6 fundamental + technical checks, then ranks by composite score.
+                    </div>
+
+                    <div class="progress-wrap">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width:${progressPct}%;background:$progressColor;"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span>${status.scannedCount}/${status.universeSize} scanned ($pctScanned%)</span>
+                            <span>
+                                ${if (status.scannedCount < status.universeSize)
+                                    "<span class=\"pulse-dot\" style=\"background:${progressColor};margin-right:4px;\"></span>Scanning: ${status.nextTicker ?: "—"}"
+                                else
+                                    "&#10003; Full cycle complete"
+                                }
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <div class="stat-value">${top.count { it.result.signal == Signal.BUY }}</div>
+                            <div class="stat-label">Buy Signals</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${top.size}</div>
+                            <div class="stat-label">Ranked</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${status.scansCompleted}</div>
+                            <div class="stat-label">Total Scans</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${if (status.scansFailed > 0) "<span style=\"color:var(--red)\">${status.scansFailed}</span>" else "0"}</div>
+                            <div class="stat-label">Failed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <table class="stock-table">
+                        <thead>
+                            <tr>
+                                <th style="width:50px;text-align:center;">#</th>
+                                <th style="text-align:left;">Stock</th>
+                                <th>Signal</th>
+                                <th>Score</th>
+                                <th>Checks</th>
+                                <th style="text-align:right;">Price</th>
+                                <th style="text-align:right;">Mkt Cap</th>
+                                <th style="text-align:right;">P/E</th>
+                                <th style="text-align:right;">Gross M.</th>
+                                <th style="text-align:right;">Scanned</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            $rowsHtml
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="search-bar">
+                    <form action="/view/" onsubmit="this.action='/view/' + this.querySelector('input').value.toUpperCase(); return true;">
+                        <input type="text" placeholder="TICKER" maxlength="6" required>
+                        <button type="submit">&#128270; Analyze</button>
+                    </form>
+                </div>
+
+                <div class="footer">
+                    <div class="footer-brand">SPAN</div>
+                    <div class="footer-sub">
+                        Stock Performance Analyzer &middot; Auto-refreshes every scan cycle
+                        <br>Not financial advice &middot; <a href="https://github.com/sridharvukkadapu/span">GitHub</a>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                // Auto-refresh every 60 seconds to show new scan results
+                setTimeout(function() { location.reload(); }, 60000);
             </script>
         </body>
         </html>
