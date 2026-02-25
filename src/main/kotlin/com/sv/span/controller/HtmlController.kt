@@ -1330,7 +1330,7 @@ class HtmlController(
                     <td style="text-align:center;width:50px;">$rankBadge</td>
                     <td>
                         <div style="font-weight:700;color:#fff;font-size:14px;">${r.symbol}</div>
-                        <div style="font-size:11px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.companyName ?: ""}</div>
+                        <div class="company-name" style="font-size:11px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.companyName ?: ""}</div>
                     </td>
                     <td style="text-align:center;">
                         <span style="display:inline-block;padding:3px 12px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.8px;background:$signalBg;color:$signalColor;">${r.signal}</span>
@@ -1390,6 +1390,7 @@ class HtmlController(
 
                 /* Card */
                 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+                .card-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
                 /* Table */
                 .stock-table { width: 100%; border-collapse: collapse; }
@@ -1426,6 +1427,10 @@ class HtmlController(
                 /* Responsive */
                 @media (max-width: 800px) {
                     .hero-title { font-size: 24px; }
+                    .stock-table th:nth-child(5),
+                    .stock-table td:nth-child(5),
+                    .stock-table th:nth-child(6),
+                    .stock-table td:nth-child(6),
                     .stock-table th:nth-child(7),
                     .stock-table td:nth-child(7),
                     .stock-table th:nth-child(8),
@@ -1435,6 +1440,8 @@ class HtmlController(
                     .stock-table th:nth-child(10),
                     .stock-table td:nth-child(10) { display: none; }
                     .stats-row { gap: 16px; }
+                    .stock-table td, .stock-table th { padding: 10px 6px; }
+                    .company-name { max-width: none !important; }
                 }
             </style>
         </head>
@@ -1483,7 +1490,7 @@ class HtmlController(
                     </div>
                 </div>
 
-                <div class="card">
+                <div class="card"><div class="card-table-wrap">
                     <table class="stock-table">
                         <thead>
                             <tr>
@@ -1503,7 +1510,7 @@ class HtmlController(
                             $rowsHtml
                         </tbody>
                     </table>
-                </div>
+                </div></div>
 
                 <div class="search-bar">
                     <form action="/view/" onsubmit="this.action='/view/' + this.querySelector('input').value.toUpperCase(); return true;">
