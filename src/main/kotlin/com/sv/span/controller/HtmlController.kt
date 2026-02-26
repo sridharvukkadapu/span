@@ -92,6 +92,15 @@ class HtmlController(
             "<tr><td>${it.fiscalYear}</td><td class='num'>${it.revenueFormatted}</td></tr>"
         }
 
+        // Detect if financial data is missing (neither Massive nor FMP had it)
+        val hasFinancials = r.margins.grossMargin != null || r.revenueAnalysis.revenueTtm != null
+        val limitedDataBanner = if (!hasFinancials) """
+                <div style="background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(245,158,11,0.05));border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:16px 20px;margin-bottom:24px;text-align:center;">
+                    <div style="font-size:18px;margin-bottom:4px;">&#9888;&#65039; Limited Data Available</div>
+                    <div style="font-size:13px;color:#94a3b8;">Financial statements are not available for this ticker on our data providers. Price and technical indicator data is shown below.</div>
+                </div>
+        """ else ""
+
         val projectionHtml = if (r.projection != null) {
             val projRows = r.projection.years.joinToString("") { y ->
                 "<tr><td>${y.year}</td><td class='num'>${y.revenueFormatted}</td><td class='num'>${y.netIncomeFormatted}</td><td class='num'>${y.epsFormatted}</td><td class='num highlight'>${y.priceFormatted}</td></tr>"
@@ -245,6 +254,8 @@ class HtmlController(
                         <a class="btn btn-primary" href="/dashboard" style="background:linear-gradient(135deg,#f59e0b,#f97316);">&#127942; Top 25</a>
                     </div>
                 </div>
+
+                $limitedDataBanner
 
                 <div class="card">
                     <div class="card-header"><h2><span class="card-icon">&#128269;</span> Screening Checks</h2></div>

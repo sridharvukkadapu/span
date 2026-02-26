@@ -20,6 +20,7 @@ import kotlin.math.round
 class AnalyzerService(
     private val api: MassiveApiClient,
     private val cacheService: TickerCacheService,
+    private val financialDataService: FinancialDataService,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -33,10 +34,10 @@ class AnalyzerService(
         val symbol = ticker.uppercase()
         log.info("Computing analyzer data for {}", symbol)
 
-        // Fetch from Massive (same pattern as ScreenerService)
+        // Fetch price from Massive, financials from Massive→FMP fallback
         val details = api.getTickerDetails(symbol)
         val prevBar = api.getPreviousDayBar(symbol)
-        val allQuarters = api.getFinancials(symbol, "quarterly", 8)
+        val allQuarters = financialDataService.getQuarterlyFinancials(symbol, 8)
 
         val recentQuarters = allQuarters.take(4)    // latest 4 for TTM
         val priorQuarters = allQuarters.drop(4)      // prior 4 for YoY

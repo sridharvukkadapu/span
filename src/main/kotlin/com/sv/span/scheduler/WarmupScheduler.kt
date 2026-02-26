@@ -23,7 +23,7 @@ class WarmupScheduler(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @Value("\${warmup.tickers:AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA}")
+    @Value("\${warmup.tickers:AAPL,MSFT,NVDA}")
     private lateinit var tickersCsv: String
 
     /**

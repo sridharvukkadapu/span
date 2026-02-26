@@ -21,33 +21,42 @@ class MassiveApiClient(private val massiveRestClient: RestClient) {
     // ---- Global rate limiter: 5 requests per 61 seconds (1s buffer) ----
     private val rateLimitMax = 5
     private val rateLimitWindowMs = 61_000L
-    private val requestTimestamps = LinkedList<Long>()
+    private val maxWaitMs = 65_000L  // max time to wait for a slot before giving up
+    private val requestTimestamps = java.util.LinkedList<Long>()
 
     /**
      * Block until a rate-limit slot is available, ensuring we never exceed
-     * 5 API calls per 61-second window.
+     * 5 API calls per 61-second window. Throws if maxWaitMs exceeded.
      */
     @Synchronized
     private fun acquireSlot() {
-        val now = System.currentTimeMillis()
-        // Purge timestamps outside the window
-        while (requestTimestamps.isNotEmpty() && requestTimestamps.peek() <= now - rateLimitWindowMs) {
-            requestTimestamps.poll()
-        }
-        // If at capacity, sleep until the oldest timestamp falls out of the window
-        if (requestTimestamps.size >= rateLimitMax) {
-            val sleepMs = requestTimestamps.peek() + rateLimitWindowMs - now
-            if (sleepMs > 0) {
-                log.info("Rate limiter: waiting {}ms for slot ({} calls in window)", sleepMs, requestTimestamps.size)
-                Thread.sleep(sleepMs)
-                // Purge again after sleeping
-                val afterSleep = System.currentTimeMillis()
-                while (requestTimestamps.isNotEmpty() && requestTimestamps.peek() <= afterSleep - rateLimitWindowMs) {
-                    requestTimestamps.poll()
-                }
+        val deadline = System.currentTimeMillis() + maxWaitMs
+
+        while (true) {
+            val now = System.currentTimeMillis()
+            // Purge timestamps outside the window
+            while (requestTimestamps.isNotEmpty() && requestTimestamps.peek() <= now - rateLimitWindowMs) {
+                requestTimestamps.poll()
             }
+
+            if (requestTimestamps.size < rateLimitMax) {
+                requestTimestamps.add(System.currentTimeMillis())
+                return
+            }
+
+            // Need to wait — compute how long
+            val sleepMs = requestTimestamps.peek() + rateLimitWindowMs - now
+            if (sleepMs <= 0) continue // slot just opened, retry
+
+            if (now + sleepMs > deadline) {
+                throw RuntimeException(
+                    "API rate limit: waited too long for a slot. The server is busy — please try again in a minute."
+                )
+            }
+
+            log.info("Rate limiter: waiting {}ms for slot ({} calls in window)", sleepMs, requestTimestamps.size)
+            Thread.sleep(sleepMs)
         }
-        requestTimestamps.add(System.currentTimeMillis())
     }
 
     /** Max retries on 429 */
