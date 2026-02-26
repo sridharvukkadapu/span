@@ -25,10 +25,10 @@ class DashboardScanScheduler(
     private val skipsRemaining = AtomicInteger(0)
 
     /**
-     * Scan the next ticker every 90 seconds. Initial delay of 45s to let
+     * Scan the next ticker every 10 minutes. Initial delay of 45s to let
      * application fully boot and warmup scheduler get a head start.
      */
-    @Scheduled(fixedRateString = "\${dashboard.scan.interval-ms:90000}", initialDelay = 45_000)
+    @Scheduled(fixedRateString = "\${dashboard.scan.interval-ms:600000}", initialDelay = 45_000)
     fun scanNext() {
         // Backoff: skip this cycle if we're in a cooldown from previous failures
         val skips = skipsRemaining.get()
