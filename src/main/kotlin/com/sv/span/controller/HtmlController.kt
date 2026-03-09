@@ -11,6 +11,7 @@ import com.sv.span.service.ScreenerService
 import com.sv.span.watchlist.WatchlistService
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.GetMapping
@@ -30,6 +31,7 @@ class HtmlController(
     private val cacheService: TickerCacheService,
     private val dashboardService: DashboardService,
     private val identityService: IdentityService,
+    @Value("\${google.oauth2.client-id:}") private val googleClientId: String,
 ) {
 
     // ======================== SCREENER VIEW ========================
@@ -2105,8 +2107,10 @@ class HtmlController(
             val pic = user.picture
             val imgHtml = if (pic != null) "<img src=\"$pic\" style=\"width:26px;height:26px;border-radius:50%;border:2px solid rgba(99,102,241,0.3);flex-shrink:0;\">" else ""
             """<div style="display:flex;align-items:center;gap:8px;">$imgHtml<span style="font-size:12px;color:#94a3b8;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${user.name}</span><a href="/logout" style="font-size:12px;color:#64748b;text-decoration:none;padding:4px 10px;border:1px solid rgba(255,255,255,0.08);border-radius:6px;white-space:nowrap;">Sign out</a></div>"""
-        } else {
+        } else if (googleClientId.isNotEmpty()) {
             """<a href="/oauth2/authorization/google" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap;">&#128100; Sign in</a>"""
+        } else {
+            ""
         }
     }
 
