@@ -3,6 +3,7 @@ package com.sv.span.controller
 import com.sv.span.model.ScreenerResult
 import com.sv.span.service.AnalyzerService
 import com.sv.span.service.BacktestService
+import com.sv.span.service.BasicAnalyzerService
 import com.sv.span.service.ScreenerService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
@@ -17,6 +18,7 @@ class TickerController(
     private val screenerService: ScreenerService,
     private val backtestService: BacktestService,
     private val analyzerService: AnalyzerService,
+    private val basicAnalyzerService: BasicAnalyzerService,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -54,6 +56,19 @@ class TickerController(
             ResponseEntity.ok(result)
         } catch (e: Exception) {
             log.error("Error in analyzer for {}: {}", symbol, e.message, e)
+            ResponseEntity.internalServerError().body(
+                mapOf("error" to "Failed to analyze $symbol", "detail" to (e.message ?: "Unknown error"))
+            )
+        }
+    }
+
+    @GetMapping("/{symbol}/basic-analyzer")
+    fun getBasicAnalyzerData(@PathVariable symbol: String): ResponseEntity<Any> {
+        return try {
+            val result = basicAnalyzerService.analyze(symbol)
+            ResponseEntity.ok(result)
+        } catch (e: Exception) {
+            log.error("Error in basic analyzer for {}: {}", symbol, e.message, e)
             ResponseEntity.internalServerError().body(
                 mapOf("error" to "Failed to analyze $symbol", "detail" to (e.message ?: "Unknown error"))
             )

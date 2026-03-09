@@ -4,6 +4,7 @@ import com.sv.span.cache.TickerCacheService
 import com.sv.span.model.*
 import com.sv.span.service.AnalyzerService
 import com.sv.span.service.BacktestService
+import com.sv.span.service.BasicAnalyzerService
 import com.sv.span.service.DashboardService
 import com.sv.span.service.ScreenerService
 import org.springframework.http.MediaType
@@ -20,6 +21,7 @@ class HtmlController(
     private val screenerService: ScreenerService,
     private val backtestService: BacktestService,
     private val analyzerService: AnalyzerService,
+    private val basicAnalyzerService: BasicAnalyzerService,
     private val cacheService: TickerCacheService,
     private val dashboardService: DashboardService,
 ) {
@@ -250,7 +252,8 @@ class HtmlController(
                     <div class="pills-row">$pillsHtml</div>
                     <div class="cta-row">
                         <a class="btn btn-primary" href="/backtest/${r.symbol}">&#9654; 5-Year Backtest</a>
-                        <a class="btn btn-primary" href="/analyzer/${r.symbol}">&#9733; Stock Analyzer</a>
+                        <a class="btn btn-primary" href="/basic-analyzer/${r.symbol}">&#128200; Basic Analyzer</a>
+                        <a class="btn btn-primary" href="/analyzer/${r.symbol}">&#128295; Advanced Analyzer</a>
                         <a class="btn btn-primary" href="/dashboard" style="background:linear-gradient(135deg,#f59e0b,#f97316);">&#127942; Top 25</a>
                     </div>
                 </div>
@@ -990,13 +993,14 @@ class HtmlController(
                 $cacheIndicator
                 <div class="nav">
                     <a href="/view/${data.symbol}">&larr; Screener</a>
+                    <a href="/basic-analyzer/${data.symbol}">&#128200; Basic</a>
                     <a href="/backtest/${data.symbol}">&#9654; Backtest</a>
                     <a href="/dashboard">&#127942; Top 25</a>
                     <span class="nav-brand">SPAN</span>
                 </div>
 
                 <div class="hero">
-                    <div class="hero-ticker">${data.symbol} STOCK ANALYZER</div>
+                    <div class="hero-ticker">${data.symbol} ADVANCED ANALYZER</div>
                     <div class="hero-title">${data.companyName ?: data.symbol}</div>
                     <div class="hero-price">${data.currentPriceFormatted ?: "N/A"}</div>
                     <div class="hero-meta">
@@ -1251,6 +1255,339 @@ class HtmlController(
                         document.getElementById('d_fvfcf_' + s).textContent = fmtPrice(fvFCF);
                         document.getElementById('d_fvavg_' + s).textContent = fmtPrice(fvAvg);
                     }
+                }
+
+                calculate();
+            </script>
+        </body>
+        </html>
+        """.trimIndent()
+    }
+
+    // ======================== BASIC ANALYZER VIEW ========================
+
+    @GetMapping("/basic-analyzer/{symbol}", produces = [MediaType.TEXT_HTML_VALUE])
+    @ResponseBody
+    fun viewBasicAnalyzer(
+        @PathVariable symbol: String,
+        @RequestParam(defaultValue = "false") refresh: Boolean,
+    ): String {
+        return try {
+            if (refresh) cacheService.evict(symbol)
+            val wasCached = cacheService.isCached("basic-analyzer", symbol)
+            val data = basicAnalyzerService.analyze(symbol)
+            val cacheEntry = cacheService.getEntry("basic-analyzer", symbol)
+            renderBasicAnalyzerHtml(data, wasCached, cacheEntry, "/basic-analyzer/${symbol.uppercase()}")
+        } catch (e: Exception) {
+            errorHtml(symbol, e.message ?: "Unknown error")
+        }
+    }
+
+    private fun renderBasicAnalyzerHtml(
+        data: com.sv.span.model.BasicAnalyzerData,
+        wasCached: Boolean,
+        cacheEntry: TickerCacheService.CacheEntry?,
+        refreshUrl: String,
+    ): String {
+        val cacheIndicator = buildCacheIndicator(wasCached, cacheEntry, refreshUrl)
+        val dollar = "$"
+        val r = data.reasonable
+        val g = data.greatExecution
+
+        return """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${data.symbol} Basic Analyzer &middot; Span</title>
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+            <style>
+                :root {
+                    --bg: #0f1117; --surface: #1a1d27; --surface-2: #242836;
+                    --border: rgba(255,255,255,0.06); --border-2: rgba(255,255,255,0.1);
+                    --text: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #64748b;
+                    --accent: #6366f1; --accent-2: #818cf8;
+                    --green: #10b981; --green-dim: rgba(16,185,129,0.12);
+                    --red: #ef4444; --red-dim: rgba(239,68,68,0.12);
+                    --yellow: #f59e0b; --yellow-dim: rgba(245,158,11,0.12);
+                    --reasonable: #6366f1; --great: #10b981;
+                }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+                .container { max-width: 820px; margin: 0 auto; padding: 24px 20px 64px; }
+
+                .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 0 4px; flex-wrap: wrap; gap: 8px; }
+                .nav a { color: var(--accent-2); text-decoration: none; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+                .nav a:hover { color: #a78bfa; }
+                .nav-brand { font-size: 16px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px; }
+
+                .hero { text-align: center; padding: 40px 24px 36px; margin-bottom: 28px; background: linear-gradient(180deg, rgba(99,102,241,0.08) 0%, transparent 100%); border-radius: 24px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+                .hero::before { content: ''; position: absolute; top: -60%; left: -20%; width: 140%; height: 120%; background: radial-gradient(circle at 50% 0%, rgba(99,102,241,0.1) 0%, transparent 60%); pointer-events: none; }
+                .hero-ticker { font-size: 13px; font-weight: 700; letter-spacing: 3px; color: var(--accent-2); }
+                .hero-title { font-size: 28px; font-weight: 900; color: #fff; margin-top: 4px; }
+                .hero-price { font-size: 38px; font-weight: 900; color: #fff; margin-top: 10px; font-variant-numeric: tabular-nums; }
+                .hero-meta { display: flex; justify-content: center; gap: 24px; margin-top: 10px; font-size: 13px; color: var(--text-secondary); flex-wrap: wrap; }
+
+                .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 20px; overflow: hidden; transition: border-color 0.2s; }
+                .card:hover { border-color: var(--border-2); }
+                .card-header { padding: 18px 24px 0; }
+                .card-header h2 { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+                .card-icon { font-size: 17px; }
+                .card-body { padding: 16px 24px 20px; }
+
+                /* Two-column scenario table */
+                .scenario-table { width: 100%; border-collapse: collapse; }
+                .scenario-table th { padding: 14px 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-2); text-align: center; }
+                .scenario-table th:first-child { text-align: left; width: 36%; }
+                .th-reasonable { color: var(--reasonable); }
+                .th-great { color: var(--great); }
+                .scenario-table td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; text-align: center; }
+                .scenario-table td:first-child { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-align: left; }
+                .scenario-input { background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 8px; color: #fff; font-size: 14px; font-weight: 600; text-align: center; padding: 10px 6px; width: 100%; font-family: 'Inter', sans-serif; font-variant-numeric: tabular-nums; outline: none; transition: border-color 0.2s; }
+                .scenario-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+                .scenario-input:read-only { opacity: 0.5; cursor: default; }
+                .output-cell { font-size: 15px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+                .separator-row td { padding: 4px 0; border-bottom: 2px solid var(--border-2); }
+
+                /* Result cards */
+                .results-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+                .result-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px 20px; text-align: center; transition: border-color 0.2s, transform 0.2s; }
+                .result-card:hover { border-color: var(--border-2); transform: translateY(-2px); }
+                .result-card.reasonable-card { border-top: 3px solid var(--reasonable); }
+                .result-card.great-card { border-top: 3px solid var(--great); }
+                .result-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+                .result-price { font-size: 34px; font-weight: 900; color: #fff; font-variant-numeric: tabular-nums; }
+                .result-gain { font-size: 18px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+                .verdict { display: inline-block; padding: 4px 18px; border-radius: 8px; font-size: 13px; font-weight: 800; letter-spacing: 1px; margin-top: 10px; }
+                .verdict-buy { background: var(--green-dim); color: var(--green); }
+                .verdict-sell { background: var(--red-dim); color: var(--red); }
+                .verdict-hold { background: var(--yellow-dim); color: var(--yellow); }
+
+                .current-price-bar { text-align: center; padding: 14px; background: var(--surface-2); border-radius: 10px; margin-bottom: 20px; }
+                .current-price-bar span { font-size: 14px; color: var(--text-muted); }
+                .current-price-bar strong { color: #fff; font-size: 18px; font-weight: 800; margin-left: 8px; }
+
+                .disclaimer { margin-top: 20px; padding: 16px 20px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+                .disclaimer strong { color: var(--yellow); }
+
+                .search-bar { display: flex; justify-content: center; margin: 32px 0 0; }
+                .search-bar form { display: flex; gap: 8px; }
+                .search-bar input { padding: 10px 18px; background: var(--surface); border: 1px solid var(--border-2); border-radius: 10px; color: var(--text); font-size: 14px; width: 140px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px; outline: none; transition: border-color 0.2s; font-family: 'Inter', sans-serif; }
+                .search-bar input:focus { border-color: var(--accent); }
+                .search-bar input::placeholder { color: var(--text-muted); }
+                .search-bar button { padding: 10px 24px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; font-family: 'Inter', sans-serif; }
+                .search-bar button:hover { background: #4f46e5; }
+
+                .footer { text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); }
+                .footer-brand { font-size: 18px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px; }
+                .footer-sub { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+                .footer-sub a { color: var(--text-muted); text-decoration: none; }
+                .footer-sub a:hover { color: var(--accent-2); }
+
+                @media (max-width: 600px) {
+                    .results-row { grid-template-columns: 1fr; }
+                    .hero-price { font-size: 28px; }
+                    .hero-title { font-size: 22px; }
+                    .scenario-table th, .scenario-table td { padding: 9px 6px; font-size: 12px; }
+                    .scenario-input { font-size: 13px; padding: 8px 4px; }
+                    .result-price { font-size: 26px; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                $cacheIndicator
+                <div class="nav">
+                    <a href="/view/${data.symbol}">&larr; Screener</a>
+                    <a href="/analyzer/${data.symbol}">&#128295; Advanced</a>
+                    <a href="/backtest/${data.symbol}">&#9654; Backtest</a>
+                    <a href="/dashboard">&#127942; Top 25</a>
+                    <span class="nav-brand">SPAN</span>
+                </div>
+
+                <div class="hero">
+                    <div class="hero-ticker">${data.symbol} BASIC ANALYZER</div>
+                    <div class="hero-title">${data.companyName ?: data.symbol}</div>
+                    <div class="hero-price">${data.currentPriceFormatted ?: "N/A"}</div>
+                    <div class="hero-meta">
+                        <span>TTM Revenue: ${data.ttmRevenueFormatted ?: "N/A"}</span>
+                        <span>Shares: ${data.sharesFormatted ?: "N/A"}</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2><span class="card-icon">&#128295;</span> Scenario Inputs</h2></div>
+                    <div class="card-body">
+                        <table class="scenario-table">
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th class="th-reasonable">&#128202; Reasonable</th>
+                                    <th class="th-great">&#9889; Great Execution</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Current Revenue (TTM)</td>
+                                    <td><input type="number" id="rev_r" value="${data.ttmRevenue ?: 0.0}" step="0.01" class="scenario-input" readonly></td>
+                                    <td><input type="number" id="rev_g" value="${data.ttmRevenue ?: 0.0}" step="0.01" class="scenario-input" readonly></td>
+                                </tr>
+                                <tr>
+                                    <td>Growth Rate %</td>
+                                    <td><input type="number" id="growth_r" value="${r.growthRatePct}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="growth_g" value="${g.growthRatePct}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr>
+                                    <td>Net Profit %</td>
+                                    <td><input type="number" id="margin_r" value="${r.netProfitPct}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="margin_g" value="${g.netProfitPct}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr>
+                                    <td>P/E Multiple</td>
+                                    <td><input type="number" id="pe_r" value="${r.peMultiple}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="pe_g" value="${g.peMultiple}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr>
+                                    <td>Shares Outstanding</td>
+                                    <td><input type="number" id="shares_r" value="${data.sharesOutstanding ?: 1.0}" step="0.001" class="scenario-input" readonly></td>
+                                    <td><input type="number" id="shares_g" value="${data.sharesOutstanding ?: 1.0}" step="0.001" class="scenario-input" readonly></td>
+                                </tr>
+                                <tr>
+                                    <td>Dilution % / Year</td>
+                                    <td><input type="number" id="dil_r" value="${r.dilutionPctPerYear}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="dil_g" value="${g.dilutionPctPerYear}" step="0.5" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr>
+                                    <td>Projection Years</td>
+                                    <td><input type="number" id="years_r" value="${r.years}" step="1" min="1" max="20" class="scenario-input" oninput="calculate()"></td>
+                                    <td><input type="number" id="years_g" value="${g.years}" step="1" min="1" max="20" class="scenario-input" oninput="calculate()"></td>
+                                </tr>
+                                <tr class="separator-row"><td colspan="3"></td></tr>
+                                <tr>
+                                    <td>Future Revenue</td>
+                                    <td class="output-cell" id="out_rev_r">&mdash;</td>
+                                    <td class="output-cell" id="out_rev_g">&mdash;</td>
+                                </tr>
+                                <tr>
+                                    <td>Future Net Income</td>
+                                    <td class="output-cell" id="out_earn_r">&mdash;</td>
+                                    <td class="output-cell" id="out_earn_g">&mdash;</td>
+                                </tr>
+                                <tr>
+                                    <td>Future Market Cap</td>
+                                    <td class="output-cell" id="out_mcap_r">&mdash;</td>
+                                    <td class="output-cell" id="out_mcap_g">&mdash;</td>
+                                </tr>
+                                <tr>
+                                    <td>Future Stock Price</td>
+                                    <td class="output-cell" id="out_price_r">&mdash;</td>
+                                    <td class="output-cell" id="out_price_g">&mdash;</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="current-price-bar">
+                    <span>Current Price</span>
+                    <strong>${data.currentPriceFormatted ?: "N/A"}</strong>
+                </div>
+
+                <div class="results-row">
+                    <div class="result-card reasonable-card">
+                        <div class="result-label">Reasonable Assumptions</div>
+                        <div class="result-price" id="res_price_r">&mdash;</div>
+                        <div class="result-gain" id="res_gain_r">&mdash;</div>
+                        <div id="res_verdict_r"></div>
+                    </div>
+                    <div class="result-card great-card">
+                        <div class="result-label">Great Execution</div>
+                        <div class="result-price" id="res_price_g">&mdash;</div>
+                        <div class="result-gain" id="res_gain_g">&mdash;</div>
+                        <div id="res_verdict_g"></div>
+                    </div>
+                </div>
+
+                <div class="disclaimer">
+                    <strong>&#9888; Disclaimer:</strong> This analyzer is for educational and informational purposes only.
+                    Stock price projections are based on simplified forward valuation using user-provided assumptions. They do not constitute financial advice.
+                    Past performance and current metrics do not guarantee future results. Always do your own research.
+                </div>
+
+                <div class="search-bar">
+                    <form onsubmit="window.location='/basic-analyzer/'+document.getElementById('bt').value.toUpperCase();return false;">
+                        <input id="bt" type="text" placeholder="TICKER" maxlength="5">
+                        <button type="submit">Analyze</button>
+                    </form>
+                </div>
+
+                <div class="footer">
+                    <div class="footer-brand">SPAN</div>
+                    <div class="footer-sub">Powered by <a href="https://github.com/sridharvukkadapu/span">Span Screener</a> &middot; Data from Massive.com</div>
+                </div>
+            </div>
+
+            <script>
+                var CURRENT_PRICE = ${data.currentPrice ?: 0.0};
+
+                function valOr(id, fallback) {
+                    var v = parseFloat(document.getElementById(id).value);
+                    return isNaN(v) ? fallback : v;
+                }
+
+                function fmtLarge(v) {
+                    if (v == null || isNaN(v)) return 'N/A';
+                    var a = Math.abs(v), s = v < 0 ? '-' : '';
+                    if (a >= 1e12) return s + '${dollar}' + (a/1e12).toFixed(2) + 'T';
+                    if (a >= 1e9)  return s + '${dollar}' + (a/1e9).toFixed(2)  + 'B';
+                    if (a >= 1e6)  return s + '${dollar}' + (a/1e6).toFixed(2)  + 'M';
+                    if (a >= 1e3)  return s + '${dollar}' + (a/1e3).toFixed(1)  + 'K';
+                    return s + '${dollar}' + a.toFixed(2);
+                }
+
+                function fmtPrice(v) {
+                    if (v == null || isNaN(v)) return 'N/A';
+                    return (v < 0 ? '-' : '') + '${dollar}' + Math.abs(v).toFixed(2);
+                }
+
+                function calcScenario(suffix) {
+                    var rev    = valOr('rev_'    + suffix, 0);
+                    var growth = valOr('growth_' + suffix, 10) / 100;
+                    var margin = valOr('margin_' + suffix, 15) / 100;
+                    var pe     = valOr('pe_'     + suffix, 20);
+                    var shares = valOr('shares_' + suffix, 1);
+                    var dil    = valOr('dil_'    + suffix, 2)  / 100;
+                    var years  = valOr('years_'  + suffix, 5);
+
+                    var futureRev    = rev    * Math.pow(1 + growth, years);
+                    var futureEarn   = futureRev * margin;
+                    var futureMcap   = futureEarn * pe;
+                    var futureShares = shares * Math.pow(1 + dil, years);
+                    var futurePrice  = futureShares > 0 ? futureMcap / futureShares : 0;
+                    var gain         = CURRENT_PRICE > 0 ? (futurePrice - CURRENT_PRICE) / CURRENT_PRICE * 100 : 0;
+
+                    document.getElementById('out_rev_'   + suffix).textContent = fmtLarge(futureRev);
+                    document.getElementById('out_earn_'  + suffix).textContent = fmtLarge(futureEarn);
+                    document.getElementById('out_mcap_'  + suffix).textContent = fmtLarge(futureMcap);
+                    document.getElementById('out_price_' + suffix).textContent = fmtPrice(futurePrice);
+
+                    document.getElementById('res_price_' + suffix).textContent = fmtPrice(futurePrice);
+
+                    var gainEl = document.getElementById('res_gain_' + suffix);
+                    gainEl.textContent = (gain >= 0 ? '+' : '') + gain.toFixed(1) + '%';
+                    gainEl.style.color = gain >= 0 ? '#10b981' : '#ef4444';
+
+                    var verdictEl = document.getElementById('res_verdict_' + suffix);
+                    if      (gain > 15)  { verdictEl.innerHTML = '<span class="verdict verdict-buy">BUY</span>'; }
+                    else if (gain < -15) { verdictEl.innerHTML = '<span class="verdict verdict-sell">SELL</span>'; }
+                    else                 { verdictEl.innerHTML = '<span class="verdict verdict-hold">HOLD</span>'; }
+                }
+
+                function calculate() {
+                    calcScenario('r');
+                    calcScenario('g');
                 }
 
                 calculate();

@@ -75,9 +75,57 @@ data class ScenarioDefaults(
     val desiredReturnPct: Double,
 )
 
+/**
+ * Pre-computed data for the Basic Stock Analyzer.
+ *
+ * Models a simple forward-looking valuation (as used in the spreadsheet approach):
+ *  - Two scenarios: Reasonable Assumptions and Great Execution
+ *  - Each scenario projects revenue → net income → market cap → stock price
+ *  - The calculation is performed client-side for instant interactivity
+ */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class BasicAnalyzerData(
+    val symbol: String,
+    val companyName: String?,
+    val currentPrice: Double?,
+    val ttmRevenue: Double?,
+    val sharesOutstanding: Double?,
+    val reasonable: BasicScenarioDefaults,
+    val greatExecution: BasicScenarioDefaults,
+) {
+    val currentPriceFormatted: String? get() = currentPrice?.let { "$${bFmt2(it)}" }
+    val ttmRevenueFormatted: String? get() = ttmRevenue?.let { "$${bFmtLarge(it)}" }
+    val sharesFormatted: String? get() = sharesOutstanding?.let { bFmtLarge(it) }
+}
+
+/**
+ * Pre-filled defaults for one scenario (Reasonable Assumptions or Great Execution).
+ */
+data class BasicScenarioDefaults(
+    val label: String,
+    val growthRatePct: Double,
+    val netProfitPct: Double,
+    val peMultiple: Double,
+    val years: Int = 5,
+    val dilutionPctPerYear: Double = 2.0,
+)
+
 // ---- Formatting helpers (prefixed to avoid clash with ScreenerModels) ----
 
 private fun aFmt2(v: Double): String = String.format("%.2f", v)
+private fun bFmt2(v: Double): String = String.format("%.2f", v)
+
+private fun bFmtLarge(v: Double): String {
+    val a = abs(v)
+    val sign = if (v < 0) "-" else ""
+    return when {
+        a >= 1_000_000_000_000 -> "${sign}${String.format("%.2f", a / 1_000_000_000_000)}T"
+        a >= 1_000_000_000 -> "${sign}${String.format("%.2f", a / 1_000_000_000)}B"
+        a >= 1_000_000 -> "${sign}${String.format("%.2f", a / 1_000_000)}M"
+        a >= 1_000 -> "${sign}${String.format("%.1f", a / 1_000)}K"
+        else -> "${sign}${String.format("%.2f", a)}"
+    }
+}
 
 private fun aFmtLarge(v: Double): String {
     val a = abs(v)
