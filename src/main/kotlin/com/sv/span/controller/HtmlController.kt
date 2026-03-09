@@ -1642,9 +1642,8 @@ class HtmlController(
     }
 
     private fun renderDashboardHtml(): String {
-        val top = dashboardService.topN(25)
+        val all = dashboardService.all()
         val status = dashboardService.status()
-        val dollar = "$"
 
         val pctScanned = if (status.universeSize > 0)
             (status.scannedCount * 100.0 / status.universeSize).let { String.format("%.0f", it) }
@@ -1660,61 +1659,76 @@ class HtmlController(
             (status.scannedCount * 100.0 / status.universeSize).coerceAtMost(100.0)
         else 0.0
 
-        // Build rows
-        val rowsHtml = if (top.isEmpty()) {
-            """
-            <tr>
-                <td colspan="10" style="text-align:center;padding:48px 20px;color:#64748b;font-size:14px;">
-                    <div style="font-size:32px;margin-bottom:12px;">&#9202;</div>
-                    Scanning in progress&hellip; first results will appear shortly.
-                    <div style="font-size:12px;margin-top:8px;color:#475569;">The scanner processes 1 ticker per minute to stay within API rate limits.</div>
-                </td>
-            </tr>
-            """
+        val rowsHtml = if (all.isEmpty()) {
+            """<tr><td colspan="11" style="text-align:center;padding:48px 20px;color:#64748b;font-size:14px;">
+                <div style="font-size:32px;margin-bottom:12px;">&#9202;</div>
+                Scanning in progress&hellip; first results will appear shortly.
+                <div style="font-size:12px;margin-top:8px;color:#475569;">The scanner processes 1 ticker every 10 minutes.</div>
+               </td></tr>"""
         } else {
-            top.mapIndexed { i, scored ->
+            all.mapIndexed { i, scored ->
                 val r = scored.result
                 val greens = r.checks.count { it.light == CheckLight.GREEN }
                 val reds = r.checks.count { it.light == CheckLight.RED }
                 val rank = i + 1
 
+                val sector = sectorFor(r.symbol)
+                val mcap = mcapTier(r.overview.marketCap)
+                val style = investmentStyle(
+                    r.revenueAnalysis.revenueGrowthYoY,
+                    r.overview.peRatio,
+                    r.overview.priceToSales,
+                )
+
                 val (signalBg, signalColor) = when (r.signal) {
-                    Signal.BUY -> "rgba(16,185,129,0.12)" to "#10b981"
-                    Signal.SELL -> "rgba(239,68,68,0.12)" to "#ef4444"
+                    Signal.BUY  -> "rgba(16,185,129,0.12)" to "#10b981"
+                    Signal.SELL -> "rgba(239,68,68,0.12)"  to "#ef4444"
                     Signal.HOLD -> "rgba(245,158,11,0.12)" to "#f59e0b"
                 }
 
                 val rankBadge = when {
-                    rank == 1 -> "<span style=\"font-size:18px;\">&#129351;</span>" // gold medal
-                    rank == 2 -> "<span style=\"font-size:18px;\">&#129352;</span>" // silver
-                    rank == 3 -> "<span style=\"font-size:18px;\">&#129353;</span>" // bronze
-                    else -> "<span style=\"color:#64748b;font-weight:700;\">#$rank</span>"
+                    rank == 1 -> "<span style=\"font-size:18px;\">&#129351;</span>"
+                    rank == 2 -> "<span style=\"font-size:18px;\">&#129352;</span>"
+                    rank == 3 -> "<span style=\"font-size:18px;\">&#129353;</span>"
+                    else      -> "<span style=\"color:#64748b;font-weight:700;\">#$rank</span>"
                 }
 
                 val scoreColor = when {
                     scored.score >= 15 -> "#10b981"
-                    scored.score >= 8 -> "#6366f1"
-                    scored.score >= 0 -> "#f59e0b"
-                    else -> "#ef4444"
+                    scored.score >= 8  -> "#6366f1"
+                    scored.score >= 0  -> "#f59e0b"
+                    else               -> "#ef4444"
                 }
 
                 val checksPills = r.checks.joinToString("") { c ->
                     val color = when (c.light) {
-                        CheckLight.GREEN -> "#10b981"
+                        CheckLight.GREEN  -> "#10b981"
                         CheckLight.YELLOW -> "#f59e0b"
-                        CheckLight.RED -> "#ef4444"
+                        CheckLight.RED    -> "#ef4444"
                     }
                     "<span style=\"display:inline-block;width:8px;height:8px;border-radius:50%;background:$color;margin-right:2px;\" title=\"${c.name}: ${c.detail}\"></span>"
                 }
 
-                val age = scored.scannedAt.let { Duration.between(it, Instant.now()) }.let { formatAge(it) }
+                val age = formatAge(Duration.between(scored.scannedAt, Instant.now()))
+
+                val styleColor = when (style) {
+                    "Growth" -> "#10b981"
+                    "Value"  -> "#f59e0b"
+                    else     -> "#6366f1"
+                }
 
                 """
-                <tr class="stock-row" onclick="window.location='/view/${r.symbol}'" style="cursor:pointer;">
-                    <td style="text-align:center;width:50px;">$rankBadge</td>
+                <tr class="stock-row"
+                    data-signal="${r.signal}"
+                    data-sector="$sector"
+                    data-mcap="$mcap"
+                    data-style="$style"
+                    onclick="window.location='/view/${r.symbol}'"
+                    style="cursor:pointer;">
+                    <td style="text-align:center;width:46px;" class="rank-cell">$rankBadge</td>
                     <td>
                         <div style="font-weight:700;color:#fff;font-size:14px;">${r.symbol}</div>
-                        <div class="company-name" style="font-size:11px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.companyName ?: ""}</div>
+                        <div class="company-name" style="font-size:11px;color:#64748b;">${r.companyName ?: ""}</div>
                     </td>
                     <td style="text-align:center;">
                         <span style="display:inline-block;padding:3px 12px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.8px;background:$signalBg;color:$signalColor;">${r.signal}</span>
@@ -1722,15 +1736,19 @@ class HtmlController(
                     </td>
                     <td style="text-align:center;font-weight:800;color:$scoreColor;font-size:16px;font-variant-numeric:tabular-nums;">${scored.score}</td>
                     <td style="text-align:center;line-height:1;">$checksPills<div style="font-size:10px;color:#64748b;margin-top:3px;">${greens}G ${reds}R</div></td>
+                    <td style="text-align:center;"><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px;background:rgba(255,255,255,0.05);color:#94a3b8;">$sector</span></td>
+                    <td style="text-align:center;"><span style="font-size:11px;font-weight:600;color:$styleColor;">$style</span></td>
                     <td style="text-align:right;font-weight:600;color:#fff;font-variant-numeric:tabular-nums;">${r.overview.priceFormatted ?: "—"}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;">${r.overview.marketCapFormatted ?: "—"}</td>
                     <td style="text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;">${r.overview.peRatioFormatted ?: "—"}</td>
-                    <td style="text-align:right;font-variant-numeric:tabular-nums;color:#94a3b8;">${r.margins.grossMarginFormatted ?: "—"}</td>
                     <td style="text-align:right;font-size:11px;color:#475569;">${age} ago</td>
                 </tr>
                 """
             }.joinToString("")
         }
+
+        // Collect distinct sectors present in current data for filter pills
+        val sectorsPresent = all.map { sectorFor(it.result.symbol) }.toSortedSet()
 
         return """
         <!DOCTYPE html>
@@ -1738,7 +1756,7 @@ class HtmlController(
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Top 25 Stocks &middot; Span Dashboard</title>
+            <title>Stock Discovery &middot; Span</title>
             <link rel="preconnect" href="https://fonts.googleapis.com">
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
             <style>
@@ -1751,126 +1769,121 @@ class HtmlController(
                 }
                 * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
-                .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px 64px; }
+                .container { max-width: 1160px; margin: 0 auto; padding: 24px 20px 64px; }
 
-                /* Hero */
-                .hero { text-align: center; padding: 48px 24px 36px; margin-bottom: 24px; background: linear-gradient(180deg, rgba(99,102,241,0.08) 0%, transparent 100%); border-radius: 24px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+                .hero { text-align: center; padding: 40px 24px 32px; margin-bottom: 20px; background: linear-gradient(180deg, rgba(99,102,241,0.08) 0%, transparent 100%); border-radius: 24px; border: 1px solid var(--border); position: relative; overflow: hidden; }
                 .hero::before { content: ''; position: absolute; top: -60%; left: -20%; width: 140%; height: 120%; background: radial-gradient(circle at 50% 0%, rgba(99,102,241,0.1) 0%, transparent 60%); pointer-events: none; }
-                .hero-brand { font-size: 14px; font-weight: 700; letter-spacing: 3px; color: var(--accent-2); }
-                .hero-title { font-size: 36px; font-weight: 900; color: #fff; margin-top: 4px; }
+                .hero-brand { font-size: 13px; font-weight: 700; letter-spacing: 3px; color: var(--accent-2); }
+                .hero-title { font-size: 32px; font-weight: 900; color: #fff; margin-top: 4px; }
                 .hero-sub { font-size: 13px; color: var(--text-muted); margin-top: 8px; max-width: 500px; margin-left: auto; margin-right: auto; }
-
-                /* Progress */
-                .progress-wrap { margin: 24px auto 0; max-width: 400px; }
-                .progress-bar { width: 100%; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+                .progress-wrap { margin: 20px auto 0; max-width: 400px; }
+                .progress-bar { width: 100%; height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
                 .progress-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
-                .progress-text { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 6px; }
-
-                /* Stats row */
-                .stats-row { display: flex; justify-content: center; gap: 32px; margin-top: 16px; flex-wrap: wrap; }
+                .progress-text { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 5px; }
+                .stats-row { display: flex; justify-content: center; gap: 28px; margin-top: 14px; flex-wrap: wrap; }
                 .stat-item { text-align: center; }
-                .stat-value { font-size: 22px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+                .stat-value { font-size: 20px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
                 .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; }
 
-                /* Card */
+                /* Filter bar */
+                .filter-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
+                .filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+                .filter-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; min-width: 60px; }
+                .pill { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid var(--border-2); background: transparent; color: var(--text-muted); cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
+                .pill:hover { border-color: var(--accent-2); color: var(--accent-2); }
+                .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+                .filter-results { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+                .filter-results strong { color: #fff; font-size: 14px; }
+
+                /* Card & table */
                 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
                 .card-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-                /* Table */
                 .stock-table { width: 100%; border-collapse: collapse; }
-                .stock-table th { padding: 12px 10px; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 2px solid var(--border-2); text-align: right; }
-                .stock-table th:first-child,
-                .stock-table th:nth-child(2),
-                .stock-table th:nth-child(3),
-                .stock-table th:nth-child(4),
-                .stock-table th:nth-child(5) { text-align: center; }
-                .stock-table td { padding: 12px 10px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); vertical-align: middle; }
+                .stock-table th { padding: 11px 10px; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 2px solid var(--border-2); text-align: right; white-space: nowrap; }
+                .stock-table th:nth-child(-n+7) { text-align: center; }
+                .stock-table th:nth-child(2) { text-align: left; }
+                .stock-table td { padding: 11px 10px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); vertical-align: middle; }
                 .stock-row { transition: background 0.15s; }
                 .stock-row:hover { background: rgba(99,102,241,0.06); }
+                .no-results { text-align:center; padding:48px 20px; color:#64748b; font-size:14px; }
 
-                /* Search bar */
-                .search-bar { display: flex; justify-content: center; margin: 32px 0 0; }
+                .search-bar { display: flex; justify-content: center; margin: 28px 0 0; }
                 .search-bar form { display: flex; gap: 8px; }
                 .search-bar input { padding: 10px 18px; background: var(--surface); border: 1px solid var(--border-2); border-radius: 10px; color: var(--text); font-size: 14px; width: 140px; text-transform: uppercase; font-weight: 600; letter-spacing: 1px; outline: none; transition: border-color 0.2s; font-family: 'Inter', sans-serif; }
                 .search-bar input:focus { border-color: var(--accent); }
                 .search-bar input::placeholder { color: var(--text-muted); }
-                .search-bar button { padding: 10px 24px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; font-family: 'Inter', sans-serif; }
+                .search-bar button { padding: 10px 24px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
                 .search-bar button:hover { background: #4f46e5; }
 
-                /* Footer */
-                .footer { text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); }
-                .footer-brand { font-size: 18px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px; }
-                .footer-sub { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+                .footer { text-align: center; margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--border); }
+                .footer-brand { font-size: 17px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 1px; }
+                .footer-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
                 .footer-sub a { color: var(--text-muted); text-decoration: none; }
-                .footer-sub a:hover { color: var(--accent-2); }
 
-                /* Pulse dot */
                 @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
                 .pulse-dot { display:inline-block; width:8px; height:8px; border-radius:50%; animation: pulse 2s ease-in-out infinite; }
 
-                /* Responsive */
-                @media (max-width: 800px) {
+                @media (max-width: 860px) {
                     .hero-title { font-size: 24px; }
-                    .stock-table th:nth-child(5),
-                    .stock-table td:nth-child(5),
-                    .stock-table th:nth-child(6),
-                    .stock-table td:nth-child(6),
-                    .stock-table th:nth-child(7),
-                    .stock-table td:nth-child(7),
-                    .stock-table th:nth-child(8),
-                    .stock-table td:nth-child(8),
-                    .stock-table th:nth-child(9),
-                    .stock-table td:nth-child(9),
-                    .stock-table th:nth-child(10),
-                    .stock-table td:nth-child(10) { display: none; }
-                    .stats-row { gap: 16px; }
-                    .stock-table td, .stock-table th { padding: 10px 6px; }
-                    .company-name { max-width: none !important; }
+                    .stock-table th:nth-child(n+9), .stock-table td:nth-child(n+9) { display: none; }
+                    .stats-row { gap: 14px; }
+                    .stock-table td, .stock-table th { padding: 9px 6px; }
+                    .company-name { display: none; }
                 }
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="hero">
-                    <div class="hero-brand">SPAN DASHBOARD</div>
-                    <div class="hero-title">&#127942; Top 25 Stocks to Buy</div>
-                    <div class="hero-sub">
-                        Auto-scanned from a universe of ${status.universeSize} stocks. The scanner evaluates 1 stock per minute using 6 fundamental + technical checks, then ranks by composite score.
-                    </div>
-
+                    <div class="hero-brand">SPAN</div>
+                    <div class="hero-title">&#128270; Stock Discovery</div>
+                    <div class="hero-sub">Filter ${all.size} scanned stocks by sector, market cap, and investment style. Ranked by composite fundamental score.</div>
                     <div class="progress-wrap">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width:${progressPct}%;background:$progressColor;"></div>
-                        </div>
+                        <div class="progress-bar"><div class="progress-fill" style="width:${progressPct}%;background:$progressColor;"></div></div>
                         <div class="progress-text">
                             <span>${status.scannedCount}/${status.universeSize} scanned ($pctScanned%)</span>
-                            <span>
-                                ${if (status.scannedCount < status.universeSize)
-                                    "<span class=\"pulse-dot\" style=\"background:${progressColor};margin-right:4px;\"></span>Scanning: ${status.nextTicker ?: "—"}"
-                                else
-                                    "&#10003; Full cycle complete"
-                                }
-                            </span>
+                            <span>${if (status.scannedCount < status.universeSize)
+                                "<span class=\"pulse-dot\" style=\"background:${progressColor};margin-right:4px;\"></span>Scanning: ${status.nextTicker ?: "—"}"
+                            else "&#10003; Full cycle complete"}</span>
                         </div>
                     </div>
-
                     <div class="stats-row">
-                        <div class="stat-item">
-                            <div class="stat-value">${top.count { it.result.signal == Signal.BUY }}</div>
-                            <div class="stat-label">Buy Signals</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value">${top.size}</div>
-                            <div class="stat-label">Ranked</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value">${status.scansCompleted}</div>
-                            <div class="stat-label">Total Scans</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value">${if (status.scansFailed > 0) "<span style=\"color:var(--red)\">${status.scansFailed}</span>" else "0"}</div>
-                            <div class="stat-label">Failed</div>
-                        </div>
+                        <div class="stat-item"><div class="stat-value">${all.count { it.result.signal == Signal.BUY }}</div><div class="stat-label">Buy Signals</div></div>
+                        <div class="stat-item"><div class="stat-value">${all.size}</div><div class="stat-label">Scanned</div></div>
+                        <div class="stat-item"><div class="stat-value">${status.scansCompleted}</div><div class="stat-label">Total Scans</div></div>
+                        <div class="stat-item"><div class="stat-value">${if (status.scansFailed > 0) "<span style=\"color:var(--red)\">${status.scansFailed}</span>" else "0"}</div><div class="stat-label">Failed</div></div>
+                    </div>
+                </div>
+
+                <!-- Filter bar -->
+                <div class="filter-bar">
+                    <div class="filter-row">
+                        <span class="filter-label">Signal</span>
+                        <button class="pill active" data-group="signal" data-value="all">All</button>
+                        <button class="pill" data-group="signal" data-value="BUY">BUY</button>
+                        <button class="pill" data-group="signal" data-value="HOLD">HOLD</button>
+                        <button class="pill" data-group="signal" data-value="SELL">SELL</button>
+                    </div>
+                    <div class="filter-row">
+                        <span class="filter-label">Sector</span>
+                        <button class="pill active" data-group="sector" data-value="all">All</button>
+                        ${sectorsPresent.joinToString("") { "<button class=\"pill\" data-group=\"sector\" data-value=\"$it\">$it</button>" }}
+                    </div>
+                    <div class="filter-row">
+                        <span class="filter-label">Mkt Cap</span>
+                        <button class="pill active" data-group="mcap" data-value="all">All</button>
+                        <button class="pill" data-group="mcap" data-value="Mega">Mega (&gt;$200B)</button>
+                        <button class="pill" data-group="mcap" data-value="Large">Large ($10B–$200B)</button>
+                        <button class="pill" data-group="mcap" data-value="Mid">Mid ($2B–$10B)</button>
+                        <button class="pill" data-group="mcap" data-value="Small">Small (&lt;$2B)</button>
+                    </div>
+                    <div class="filter-row">
+                        <span class="filter-label">Style</span>
+                        <button class="pill active" data-group="style" data-value="all">All</button>
+                        <button class="pill" data-group="style" data-value="Growth">Growth</button>
+                        <button class="pill" data-group="style" data-value="Value">Value</button>
+                        <button class="pill" data-group="style" data-value="Blend">Blend</button>
+                        <span class="filter-results">showing <strong id="visible-count">${all.size}</strong> stocks</span>
                     </div>
                 </div>
 
@@ -1878,26 +1891,30 @@ class HtmlController(
                     <table class="stock-table">
                         <thead>
                             <tr>
-                                <th style="width:50px;text-align:center;">#</th>
+                                <th style="width:46px;text-align:center;">#</th>
                                 <th style="text-align:left;">Stock</th>
                                 <th>Signal</th>
                                 <th>Score</th>
                                 <th>Checks</th>
+                                <th>Sector</th>
+                                <th>Style</th>
                                 <th style="text-align:right;">Price</th>
                                 <th style="text-align:right;">Mkt Cap</th>
                                 <th style="text-align:right;">P/E</th>
-                                <th style="text-align:right;">Gross M.</th>
                                 <th style="text-align:right;">Scanned</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="stock-tbody">
                             $rowsHtml
                         </tbody>
                     </table>
+                    <div class="no-results" id="no-results" style="display:none;">
+                        No stocks match the selected filters. Try broadening your criteria.
+                    </div>
                 </div></div>
 
                 <div class="search-bar">
-                    <form action="/view/" onsubmit="this.action='/view/' + this.querySelector('input').value.toUpperCase(); return true;">
+                    <form action="/view/" onsubmit="this.action='/view/'+this.querySelector('input').value.toUpperCase();return true;">
                         <input type="text" placeholder="TICKER" maxlength="6" required>
                         <button type="submit">&#128270; Analyze</button>
                     </form>
@@ -1905,15 +1922,45 @@ class HtmlController(
 
                 <div class="footer">
                     <div class="footer-brand">SPAN</div>
-                    <div class="footer-sub">
-                        Stock Performance Analyzer &middot; Auto-refreshes every scan cycle
-                        <br>Not financial advice &middot; <a href="https://github.com/sridharvukkadapu/span">GitHub</a>
-                    </div>
+                    <div class="footer-sub">Not financial advice &middot; <a href="https://github.com/sridharvukkadapu/span">GitHub</a></div>
                 </div>
             </div>
 
             <script>
-                // Auto-refresh every 60 seconds to show new scan results
+                var filters = { signal: 'all', sector: 'all', mcap: 'all', style: 'all' };
+
+                function applyFilters() {
+                    var rows = document.querySelectorAll('#stock-tbody .stock-row');
+                    var visible = 0;
+                    rows.forEach(function(row, i) {
+                        var show = (filters.signal === 'all' || row.dataset.signal === filters.signal)
+                                && (filters.sector === 'all' || row.dataset.sector === filters.sector)
+                                && (filters.mcap   === 'all' || row.dataset.mcap   === filters.mcap)
+                                && (filters.style  === 'all' || row.dataset.style  === filters.style);
+                        row.style.display = show ? '' : 'none';
+                        if (show) {
+                            visible++;
+                            // Re-number visible ranks
+                            var rankCell = row.querySelector('.rank-cell');
+                            if (rankCell) rankCell.innerHTML = '<span style="color:#64748b;font-weight:700;">#' + visible + '</span>';
+                        }
+                    });
+                    document.getElementById('visible-count').textContent = visible;
+                    document.getElementById('no-results').style.display = visible === 0 ? 'block' : 'none';
+                }
+
+                document.querySelectorAll('.pill').forEach(function(pill) {
+                    pill.addEventListener('click', function() {
+                        var group = this.dataset.group;
+                        // Deactivate siblings
+                        document.querySelectorAll('.pill[data-group="' + group + '"]').forEach(function(p) { p.classList.remove('active'); });
+                        this.classList.add('active');
+                        filters[group] = this.dataset.value;
+                        applyFilters();
+                    });
+                });
+
+                // Auto-refresh every 60s
                 setTimeout(function() { location.reload(); }, 60000);
             </script>
         </body>
@@ -2064,5 +2111,67 @@ class HtmlController(
 
     companion object {
         private const val SESSION_COOKIE = "span_session"
+
+        /** Static sector classification for the dashboard universe. */
+        val SECTOR_MAP: Map<String, String> = mapOf(
+            // Tech (software / internet / cloud)
+            "MSFT" to "Tech", "GOOGL" to "Tech", "AMZN" to "Tech", "META" to "Tech",
+            "NFLX" to "Tech", "CRM" to "Tech", "ADBE" to "Tech", "ORCL" to "Tech",
+            "UBER" to "Tech", "ABNB" to "Tech", "SQ" to "Tech", "SHOP" to "Tech",
+            "SNOW" to "Tech", "PLTR" to "Tech", "COIN" to "Tech", "HOOD" to "Tech",
+            "SOFI" to "Tech", "CRWD" to "Tech", "PANW" to "Tech", "ZS" to "Tech",
+            "NET" to "Tech", "DDOG" to "Tech", "RBLX" to "Tech", "ROKU" to "Tech",
+            "SNAP" to "Tech", "RDDT" to "Tech", "DASH" to "Tech", "GRAB" to "Tech",
+            "SE" to "Tech", "MELI" to "Tech", "NU" to "Tech",
+            // Semiconductors
+            "NVDA" to "Semis", "AMD" to "Semis", "AVGO" to "Semis", "QCOM" to "Semis",
+            "MU" to "Semis", "MRVL" to "Semis", "ARM" to "Semis", "SMCI" to "Semis",
+            "INTC" to "Semis",
+            // Consumer
+            "AAPL" to "Consumer", "TSLA" to "Consumer", "DIS" to "Consumer",
+            "SBUX" to "Consumer", "NKE" to "Consumer", "MCD" to "Consumer",
+            "KO" to "Consumer", "PEP" to "Consumer", "PG" to "Consumer",
+            "COST" to "Consumer", "WMT" to "Consumer", "TGT" to "Consumer",
+            "HD" to "Consumer", "LOW" to "Consumer", "PINS" to "Consumer",
+            "GME" to "Consumer", "AMC" to "Consumer", "BBBY" to "Consumer",
+            // Finance
+            "JPM" to "Finance", "GS" to "Finance", "MS" to "Finance", "BAC" to "Finance",
+            "WFC" to "Finance", "V" to "Finance", "MA" to "Finance", "AXP" to "Finance",
+            "PYPL" to "Finance", "BRK.B" to "Finance", "BX" to "Finance",
+            "KKR" to "Finance", "SCHW" to "Finance",
+            // Healthcare
+            "JNJ" to "Healthcare", "UNH" to "Healthcare", "PFE" to "Healthcare",
+            "ABBV" to "Healthcare", "LLY" to "Healthcare", "MRK" to "Healthcare",
+            "BMY" to "Healthcare", "AMGN" to "Healthcare", "CHYM" to "Healthcare",
+            // Industrials & Defense
+            "BA" to "Industrials", "CAT" to "Industrials", "GE" to "Industrials",
+            "HON" to "Industrials", "UPS" to "Industrials", "FDX" to "Industrials",
+            "LMT" to "Industrials", "RTX" to "Industrials", "NOC" to "Industrials",
+            "GD" to "Industrials",
+            // Energy
+            "XOM" to "Energy", "CVX" to "Energy", "COP" to "Energy", "SLB" to "Energy",
+            // Telecom
+            "T" to "Telecom", "VZ" to "Telecom", "TMUS" to "Telecom",
+            // Real Estate
+            "AMT" to "Real Estate", "PLD" to "Real Estate", "SPG" to "Real Estate", "O" to "Real Estate",
+            // EV / Clean Energy
+            "RIVN" to "EV/Clean", "LCID" to "EV/Clean",
+        )
+
+        fun sectorFor(symbol: String) = SECTOR_MAP[symbol.uppercase()] ?: "Other"
+
+        fun mcapTier(marketCap: Double?): String = when {
+            marketCap == null -> "Unknown"
+            marketCap >= 200_000_000_000 -> "Mega"
+            marketCap >= 10_000_000_000  -> "Large"
+            marketCap >= 2_000_000_000   -> "Mid"
+            else                         -> "Small"
+        }
+
+        fun investmentStyle(growthPct: Double?, peRatio: Double?, pToSales: Double?): String = when {
+            growthPct != null && growthPct > 15.0 -> "Growth"
+            peRatio != null && peRatio < 18.0 && (pToSales == null || pToSales < 4.0) -> "Value"
+            else -> "Blend"
+        }
     }
 }

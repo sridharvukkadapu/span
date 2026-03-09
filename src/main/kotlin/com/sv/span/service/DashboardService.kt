@@ -90,12 +90,16 @@ class DashboardService(
     /**
      * Get the top N stocks ranked by composite score (descending).
      */
-    fun topN(n: Int = 25): List<ScoredStock> =
+    fun topN(n: Int = 25): List<ScoredStock> = all().take(n)
+
+    /**
+     * Get all scanned stocks ranked by composite score (descending).
+     */
+    fun all(): List<ScoredStock> =
         board.values
             .sortedWith(compareByDescending<ScoredStock> { it.score }
                 .thenByDescending { it.result.checks.count { c -> c.light == CheckLight.GREEN } }
                 .thenBy { it.result.symbol })
-            .take(n)
 
     /**
      * Current scan progress.
