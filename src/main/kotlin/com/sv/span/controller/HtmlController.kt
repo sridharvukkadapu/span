@@ -6,9 +6,9 @@ import com.sv.span.service.AnalyzerService
 import com.sv.span.service.BacktestService
 import com.sv.span.service.BasicAnalyzerService
 import com.sv.span.service.DashboardService
+import com.sv.span.service.IdentityService
 import com.sv.span.service.ScreenerService
 import com.sv.span.watchlist.WatchlistService
-import jakarta.servlet.http.Cookie
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.MediaType
@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseBody
 import java.time.Duration
 import java.time.Instant
-import java.util.UUID
 
 @Controller
 class HtmlController(
@@ -30,6 +29,7 @@ class HtmlController(
     private val watchlistService: WatchlistService,
     private val cacheService: TickerCacheService,
     private val dashboardService: DashboardService,
+    private val identityService: IdentityService,
 ) {
 
     // ======================== SCREENER VIEW ========================
@@ -47,7 +47,7 @@ class HtmlController(
             val wasCached = cacheService.isCached("screener", symbol)
             val r = screenerService.analyze(symbol)
             val cacheEntry = cacheService.getEntry("screener", symbol)
-            val sessionId = resolveSessionId(request, response)
+            val sessionId = identityService.resolve(request, response)
             val isSaved = watchlistService.isSaved(sessionId, symbol)
             renderHtml(r, wasCached, cacheEntry, "/view/${symbol.uppercase()}", isSaved)
         } catch (e: Exception) {
@@ -257,6 +257,7 @@ class HtmlController(
         <body>
             <div class="container">
                 $cacheIndicator
+                <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">${userNavHtml()}</div>
                 <div class="hero">
                     <div class="hero-ticker">${r.symbol}</div>
                     <div class="hero-company">${r.companyName ?: r.symbol}</div>
@@ -638,7 +639,7 @@ class HtmlController(
                     <a href="/analyzer/${r.symbol}">&#9733; Analyzer</a>
                     <a href="/watchlist">&#9734; Watchlist</a>
                     <a href="/dashboard">&#127942; Top 25</a>
-                    <span class="nav-brand">SPAN</span>
+                    <div style="display:flex;align-items:center;gap:12px;"><span class="nav-brand">SPAN</span>${userNavHtml()}</div>
                 </div>
 
                 <div class="hero">
@@ -1031,7 +1032,7 @@ class HtmlController(
                     <a href="/backtest/${data.symbol}">&#9654; Backtest</a>
                     <a href="/watchlist">&#9734; Watchlist</a>
                     <a href="/dashboard">&#127942; Top 25</a>
-                    <span class="nav-brand">SPAN</span>
+                    <div style="display:flex;align-items:center;gap:12px;"><span class="nav-brand">SPAN</span>${userNavHtml()}</div>
                 </div>
 
                 <div class="hero">
@@ -1440,7 +1441,7 @@ class HtmlController(
                     <a href="/backtest/${data.symbol}">&#9654; Backtest</a>
                     <a href="/watchlist">&#9734; Watchlist</a>
                     <a href="/dashboard">&#127942; Top 25</a>
-                    <span class="nav-brand">SPAN</span>
+                    <div style="display:flex;align-items:center;gap:12px;"><span class="nav-brand">SPAN</span>${userNavHtml()}</div>
                 </div>
 
                 <div class="hero">
@@ -1834,6 +1835,7 @@ class HtmlController(
         </head>
         <body>
             <div class="container">
+                <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">${userNavHtml()}</div>
                 <div class="hero">
                     <div class="hero-brand">SPAN</div>
                     <div class="hero-title">&#128270; Stock Discovery</div>
@@ -2000,7 +2002,7 @@ class HtmlController(
     @GetMapping("/watchlist", produces = [MediaType.TEXT_HTML_VALUE])
     @ResponseBody
     fun viewWatchlist(request: HttpServletRequest, response: HttpServletResponse): String {
-        val sessionId = resolveSessionId(request, response)
+        val sessionId = identityService.resolve(request, response)
         val tickers = watchlistService.getAll(sessionId)
         return renderWatchlistHtml(tickers)
     }
@@ -2060,7 +2062,7 @@ class HtmlController(
             <div class="container">
                 <div class="nav">
                     <a href="/dashboard">&#127942; Top 25</a>
-                    <span class="nav-brand">SPAN</span>
+                    <div style="display:flex;align-items:center;gap:12px;"><span class="nav-brand">SPAN</span>${userNavHtml()}</div>
                 </div>
                 <div class="card">
                     <div class="card-header">
@@ -2095,22 +2097,20 @@ class HtmlController(
         """.trimIndent()
     }
 
-    // ======================== SESSION HELPERS ========================
+    // ======================== AUTH NAV HELPER ========================
 
-    private fun resolveSessionId(request: HttpServletRequest, response: HttpServletResponse): String {
-        val existing = request.cookies?.firstOrNull { it.name == SESSION_COOKIE }?.value
-        if (existing != null) return existing
-        val newId = UUID.randomUUID().toString()
-        response.addCookie(Cookie(SESSION_COOKIE, newId).apply {
-            maxAge = 60 * 60 * 24 * 365
-            path = "/"
-            isHttpOnly = true
-        })
-        return newId
+    private fun userNavHtml(): String {
+        val user = identityService.currentUser()
+        return if (user != null) {
+            val pic = user.picture
+            val imgHtml = if (pic != null) "<img src=\"$pic\" style=\"width:26px;height:26px;border-radius:50%;border:2px solid rgba(99,102,241,0.3);flex-shrink:0;\">" else ""
+            """<div style="display:flex;align-items:center;gap:8px;">$imgHtml<span style="font-size:12px;color:#94a3b8;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${user.name}</span><a href="/logout" style="font-size:12px;color:#64748b;text-decoration:none;padding:4px 10px;border:1px solid rgba(255,255,255,0.08);border-radius:6px;white-space:nowrap;">Sign out</a></div>"""
+        } else {
+            """<a href="/oauth2/authorization/google" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap;">&#128100; Sign in</a>"""
+        }
     }
 
     companion object {
-        private const val SESSION_COOKIE = "span_session"
 
         /** Static sector classification for the dashboard universe. */
         val SECTOR_MAP: Map<String, String> = mapOf(
