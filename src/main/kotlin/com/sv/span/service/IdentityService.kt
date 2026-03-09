@@ -21,7 +21,7 @@ class IdentityService {
     fun resolve(request: HttpServletRequest, response: HttpServletResponse): String {
         val auth = SecurityContextHolder.getContext().authentication
         if (auth is OAuth2AuthenticationToken) {
-            val sub = auth.principal.getAttribute<String>("sub") ?: auth.name
+            val sub = auth.principal?.getAttribute<String>("sub") ?: auth.name
             return "g:$sub"
         }
         val existing = request.cookies?.firstOrNull { it.name == SESSION_COOKIE }?.value
@@ -40,8 +40,8 @@ class IdentityService {
         val auth = SecurityContextHolder.getContext().authentication
         if (auth is OAuth2AuthenticationToken) {
             return GoogleUser(
-                name = auth.principal.getAttribute<String>("name") ?: "User",
-                picture = auth.principal.getAttribute<String>("picture"),
+                name = auth.principal?.getAttribute<String>("name") ?: "User",
+                picture = auth.principal?.getAttribute<String>("picture"),
             )
         }
         return null

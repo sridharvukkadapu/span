@@ -6,7 +6,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher
 
 @Configuration
 @EnableWebSecurity
@@ -20,8 +19,9 @@ class SecurityConfig {
                 oauth2.defaultSuccessUrl("/watchlist", false)
             }
             .logout { logout ->
+                // Allow GET /logout since CSRF is disabled
                 logout
-                    .logoutRequestMatcher(AntPathRequestMatcher("/logout", "GET"))
+                    .logoutRequestMatcher { req -> req.requestURI == "/logout" }
                     .logoutSuccessUrl("/")
                     .invalidateHttpSession(true)
                     .clearAuthentication(true)
