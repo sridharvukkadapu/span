@@ -7,6 +7,10 @@ import com.sv.span.service.BacktestService
 import com.sv.span.service.BasicAnalyzerService
 import com.sv.span.service.DashboardService
 import com.sv.span.service.ScreenerService
+import com.sv.span.watchlist.WatchlistService
+import jakarta.servlet.http.Cookie
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.GetMapping
@@ -15,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseBody
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 @Controller
 class HtmlController(
@@ -22,6 +27,7 @@ class HtmlController(
     private val backtestService: BacktestService,
     private val analyzerService: AnalyzerService,
     private val basicAnalyzerService: BasicAnalyzerService,
+    private val watchlistService: WatchlistService,
     private val cacheService: TickerCacheService,
     private val dashboardService: DashboardService,
 ) {
@@ -33,13 +39,17 @@ class HtmlController(
     fun viewRecommendation(
         @PathVariable symbol: String,
         @RequestParam(defaultValue = "false") refresh: Boolean,
+        request: HttpServletRequest,
+        response: HttpServletResponse,
     ): String {
         return try {
             if (refresh) cacheService.evict(symbol)
             val wasCached = cacheService.isCached("screener", symbol)
             val r = screenerService.analyze(symbol)
             val cacheEntry = cacheService.getEntry("screener", symbol)
-            renderHtml(r, wasCached, cacheEntry, "/view/${symbol.uppercase()}")
+            val sessionId = resolveSessionId(request, response)
+            val isSaved = watchlistService.isSaved(sessionId, symbol)
+            renderHtml(r, wasCached, cacheEntry, "/view/${symbol.uppercase()}", isSaved)
         } catch (e: Exception) {
             errorHtml(symbol, e.message ?: "Unknown error")
         }
@@ -50,6 +60,7 @@ class HtmlController(
         wasCached: Boolean = false,
         cacheEntry: TickerCacheService.CacheEntry? = null,
         refreshUrl: String = "",
+        isSaved: Boolean = false,
     ): String {
         val cacheIndicator = buildCacheIndicator(wasCached, cacheEntry, refreshUrl)
 
@@ -180,6 +191,8 @@ class HtmlController(
                 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 28px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; transition: all 0.2s ease; cursor: pointer; border: none; }
                 .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; box-shadow: 0 2px 12px rgba(99,102,241,0.3); }
                 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.45); }
+                .btn-saved { background: linear-gradient(135deg, #065f46, #047857); color: #fff; box-shadow: 0 2px 12px rgba(16,185,129,0.3); }
+                .btn-saved:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.45); }
 
                 /* ---- CARDS ---- */
                 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 20px; overflow: hidden; transition: border-color 0.2s; }
@@ -254,6 +267,9 @@ class HtmlController(
                         <a class="btn btn-primary" href="/backtest/${r.symbol}">&#9654; 5-Year Backtest</a>
                         <a class="btn btn-primary" href="/basic-analyzer/${r.symbol}">&#128200; Basic Analyzer</a>
                         <a class="btn btn-primary" href="/analyzer/${r.symbol}">&#128295; Advanced Analyzer</a>
+                        <button id="wl-btn" class="btn ${if (isSaved) "btn-saved" else "btn-primary"}" onclick="toggleWatchlist('${r.symbol}', this)">
+                            ${if (isSaved) "&#10003; Saved" else "&#9733; Save"}
+                        </button>
                         <a class="btn btn-primary" href="/dashboard" style="background:linear-gradient(135deg,#f59e0b,#f97316);">&#127942; Top 25</a>
                     </div>
                 </div>
@@ -347,6 +363,23 @@ class HtmlController(
                     <div class="footer-sub">Powered by <a href="https://github.com/sridharvukkadapu/span">Span Screener</a> &middot; Data from Massive.com</div>
                 </div>
             </div>
+            <script>
+                function toggleWatchlist(ticker, btn) {
+                    var saved = btn.classList.contains('btn-saved');
+                    var method = saved ? 'DELETE' : 'POST';
+                    fetch('/api/v1/watchlist/' + ticker, { method: method })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            if (data.saved) {
+                                btn.className = 'btn btn-saved';
+                                btn.innerHTML = '&#10003; Saved';
+                            } else {
+                                btn.className = 'btn btn-primary';
+                                btn.innerHTML = '&#9733; Save';
+                            }
+                        });
+                }
+            </script>
         </body>
         </html>
         """.trimIndent()
@@ -603,6 +636,7 @@ class HtmlController(
                 <div class="nav">
                     <a href="/view/${r.symbol}">&larr; Screener</a>
                     <a href="/analyzer/${r.symbol}">&#9733; Analyzer</a>
+                    <a href="/watchlist">&#9734; Watchlist</a>
                     <a href="/dashboard">&#127942; Top 25</a>
                     <span class="nav-brand">SPAN</span>
                 </div>
@@ -995,6 +1029,7 @@ class HtmlController(
                     <a href="/view/${data.symbol}">&larr; Screener</a>
                     <a href="/basic-analyzer/${data.symbol}">&#128200; Basic</a>
                     <a href="/backtest/${data.symbol}">&#9654; Backtest</a>
+                    <a href="/watchlist">&#9734; Watchlist</a>
                     <a href="/dashboard">&#127942; Top 25</a>
                     <span class="nav-brand">SPAN</span>
                 </div>
@@ -1403,6 +1438,7 @@ class HtmlController(
                     <a href="/view/${data.symbol}">&larr; Screener</a>
                     <a href="/analyzer/${data.symbol}">&#128295; Advanced</a>
                     <a href="/backtest/${data.symbol}">&#9654; Backtest</a>
+                    <a href="/watchlist">&#9734; Watchlist</a>
                     <a href="/dashboard">&#127942; Top 25</a>
                     <span class="nav-brand">SPAN</span>
                 </div>
@@ -1910,5 +1946,123 @@ class HtmlController(
         d.toHours() >= 1 -> "${d.toHours()}h ${d.toMinutesPart()}m"
         d.toMinutes() >= 1 -> "${d.toMinutes()}m"
         else -> "${d.seconds}s"
+    }
+
+    // ======================== WATCHLIST VIEW ========================
+
+    @GetMapping("/watchlist", produces = [MediaType.TEXT_HTML_VALUE])
+    @ResponseBody
+    fun viewWatchlist(request: HttpServletRequest, response: HttpServletResponse): String {
+        val sessionId = resolveSessionId(request, response)
+        val tickers = watchlistService.getAll(sessionId)
+        return renderWatchlistHtml(tickers)
+    }
+
+    private fun renderWatchlistHtml(tickers: List<String>): String {
+        val rowsHtml = if (tickers.isEmpty()) {
+            """<div style="text-align:center;padding:48px 20px;color:#64748b;font-size:14px;">
+                <div style="font-size:32px;margin-bottom:12px;">&#9734;</div>
+                Your watchlist is empty. Hit <strong style="color:#e2e8f0;">Save</strong> on any stock to add it here.
+               </div>"""
+        } else {
+            tickers.joinToString("") { ticker ->
+                """
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.06);">
+                    <a href="/view/$ticker" style="font-size:16px;font-weight:700;color:#818cf8;text-decoration:none;letter-spacing:1px;">$ticker</a>
+                    <div style="display:flex;gap:10px;">
+                        <a href="/view/$ticker" style="padding:7px 16px;background:rgba(99,102,241,0.15);border-radius:8px;color:#818cf8;font-size:13px;font-weight:600;text-decoration:none;">Screener</a>
+                        <a href="/basic-analyzer/$ticker" style="padding:7px 16px;background:rgba(99,102,241,0.15);border-radius:8px;color:#818cf8;font-size:13px;font-weight:600;text-decoration:none;">Analyze</a>
+                        <button onclick="removeFromWatchlist('$ticker', this)" style="padding:7px 14px;background:rgba(239,68,68,0.12);border:none;border-radius:8px;color:#ef4444;font-size:13px;font-weight:600;cursor:pointer;">Remove</button>
+                    </div>
+                </div>
+                """
+            }
+        }
+
+        return """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>My Watchlist &middot; Span</title>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+            <style>
+                * { margin:0; padding:0; box-sizing:border-box; }
+                body { font-family:'Inter',sans-serif; background:#0f1117; color:#e2e8f0; -webkit-font-smoothing:antialiased; }
+                .container { max-width:700px; margin:0 auto; padding:24px 20px 64px; }
+                .nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:32px; }
+                .nav a { color:#818cf8; text-decoration:none; font-size:13px; font-weight:600; }
+                .nav a:hover { color:#a78bfa; }
+                .nav-brand { font-size:16px; font-weight:800; background:linear-gradient(135deg,#6366f1,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:1px; }
+                .card { background:#1a1d27; border:1px solid rgba(255,255,255,0.06); border-radius:16px; overflow:hidden; }
+                .card-header { padding:20px 20px 16px; border-bottom:1px solid rgba(255,255,255,0.06); }
+                .card-header h1 { font-size:18px; font-weight:800; display:flex; align-items:center; gap:8px; }
+                .count { font-size:12px; font-weight:600; background:rgba(99,102,241,0.15); color:#818cf8; padding:2px 10px; border-radius:20px; }
+                .search-bar { display:flex; justify-content:center; margin:32px 0 0; }
+                .search-bar form { display:flex; gap:8px; }
+                .search-bar input { padding:10px 18px; background:#1a1d27; border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:#e2e8f0; font-size:14px; width:140px; text-transform:uppercase; font-weight:600; letter-spacing:1px; outline:none; font-family:'Inter',sans-serif; }
+                .search-bar button { padding:10px 24px; background:#6366f1; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; }
+                .footer { text-align:center; margin-top:40px; padding-top:24px; border-top:1px solid rgba(255,255,255,0.06); }
+                .footer-brand { font-size:18px; font-weight:800; background:linear-gradient(135deg,#6366f1,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+                .footer-sub { font-size:11px; color:#64748b; margin-top:6px; }
+                .footer-sub a { color:#64748b; text-decoration:none; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="nav">
+                    <a href="/dashboard">&#127942; Top 25</a>
+                    <span class="nav-brand">SPAN</span>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h1>&#9733; My Watchlist <span class="count">${tickers.size}</span></h1>
+                    </div>
+                    $rowsHtml
+                </div>
+                <div class="search-bar">
+                    <form onsubmit="window.location='/view/'+document.getElementById('wt').value.toUpperCase();return false;">
+                        <input id="wt" type="text" placeholder="TICKER" maxlength="5">
+                        <button type="submit">Screen</button>
+                    </form>
+                </div>
+                <div class="footer">
+                    <div class="footer-brand">SPAN</div>
+                    <div class="footer-sub"><a href="https://github.com/sridharvukkadapu/span">Span Screener</a></div>
+                </div>
+            </div>
+            <script>
+                function removeFromWatchlist(ticker, btn) {
+                    fetch('/api/v1/watchlist/' + ticker, { method: 'DELETE' })
+                        .then(function() {
+                            var row = btn.closest('div[style]');
+                            row.remove();
+                            var countEl = document.querySelector('.count');
+                            if (countEl) countEl.textContent = parseInt(countEl.textContent) - 1;
+                        });
+                }
+            </script>
+        </body>
+        </html>
+        """.trimIndent()
+    }
+
+    // ======================== SESSION HELPERS ========================
+
+    private fun resolveSessionId(request: HttpServletRequest, response: HttpServletResponse): String {
+        val existing = request.cookies?.firstOrNull { it.name == SESSION_COOKIE }?.value
+        if (existing != null) return existing
+        val newId = UUID.randomUUID().toString()
+        response.addCookie(Cookie(SESSION_COOKIE, newId).apply {
+            maxAge = 60 * 60 * 24 * 365
+            path = "/"
+            isHttpOnly = true
+        })
+        return newId
+    }
+
+    companion object {
+        private const val SESSION_COOKIE = "span_session"
     }
 }
