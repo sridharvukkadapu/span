@@ -5,6 +5,7 @@ import com.sv.span.client.MassiveApiClient
 import com.sv.span.client.dto.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.time.LocalDate
 
 /**
  * Unified financial data service that tries Massive (Polygon) first,
@@ -22,11 +23,12 @@ class FinancialDataService(
     private val log = LoggerFactory.getLogger(javaClass)
 
     /**
-     * Get quarterly financial data: tries Massive first, falls back to FMP.
-     * Returns data in Massive FinancialsDto format regardless of source.
+     * Returns quarterly financials sorted most-recent-first (descending by period end date).
+     *
+     * Contract: callers can safely use take(N) for TTM and drop(N) for prior-period comparisons.
+     * Both Polygon and FMP have inconsistent default ordering, so we normalise here.
      */
     fun getQuarterlyFinancials(symbol: String, limit: Int = 8): List<FinancialsDto> {
-        // Try Massive first (free, no rate limit issues with our limiter)
         val massiveData = try {
             massiveApi.getFinancials(symbol, "quarterly", limit)
         } catch (e: Exception) {
@@ -36,10 +38,9 @@ class FinancialDataService(
 
         if (massiveData.isNotEmpty()) {
             log.debug("Using Massive financials for {} ({} quarters)", symbol, massiveData.size)
-            return massiveData
+            return massiveData.sortedByEndDateDescending()
         }
 
-        // Fallback to FMP
         log.info("Massive has no financials for {}. Falling back to FMP.", symbol)
         return try {
             val incomeStmts = fmpApi.getIncomeStatements(symbol, "quarter", limit)
@@ -53,12 +54,21 @@ class FinancialDataService(
 
             val converted = convertFmpToMassiveFormat(symbol, incomeStmts, balanceSheets, cashFlows)
             log.info("FMP fallback for {}: converted {} quarters", symbol, converted.size)
-            converted
+            converted.sortedByEndDateDescending()
         } catch (e: Exception) {
             log.warn("FMP financials fallback failed for {}: {}", symbol, e.message)
             emptyList()
         }
     }
+
+    /**
+     * Sorts quarters most-recent-first by parsing end_date as LocalDate.
+     * Quarters with a missing or unparseable date are placed last.
+     */
+    private fun List<FinancialsDto>.sortedByEndDateDescending(): List<FinancialsDto> =
+        sortedByDescending { dto ->
+            dto.endDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        }
 
     /**
      * Convert FMP's separate income/balance/cash flow DTOs into the unified
