@@ -103,6 +103,23 @@ class FmpApiClient(private val fmpRestClient: RestClient) {
         } ?: emptyList()
     }
 
+    // ---- Cache management ----
+
+    /** Evict all cache entries for a specific ticker. Returns number of entries removed. */
+    fun evictTicker(ticker: String): Int {
+        val prefix = ticker.uppercase()
+        val keys = cache.keys.filter { it.contains(":$prefix:") || it.endsWith(":$prefix") }
+        keys.forEach { cache.remove(it) }
+        return keys.size
+    }
+
+    /** Evict the entire cache. Returns number of entries removed. */
+    fun evictAll(): Int {
+        val count = cache.size
+        cache.clear()
+        return count
+    }
+
     // ---- Cache helper ----
 
     @Suppress("UNCHECKED_CAST")

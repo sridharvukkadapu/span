@@ -1,6 +1,8 @@
 package com.sv.span.controller
 
 import com.sv.span.cache.TickerCacheService
+import com.sv.span.client.FmpApiClient
+import com.sv.span.client.MassiveApiClient
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -20,24 +22,43 @@ class HealthController {
  */
 @RestController
 @RequestMapping("/api/v1/cache")
-class CacheController(private val cacheService: TickerCacheService) {
+class CacheController(
+    private val cacheService: TickerCacheService,
+    private val massiveApi: MassiveApiClient,
+    private val fmpApi: FmpApiClient,
+) {
 
     /** Cache statistics — hit rate, entries, etc. */
     @GetMapping("/stats")
     fun stats(): ResponseEntity<Map<String, Any>> =
         ResponseEntity.ok(cacheService.stats())
 
-    /** Evict cached results for a specific ticker */
+    /** Evict all cached results for a specific ticker across all cache layers */
     @DeleteMapping("/{ticker}")
     fun evict(@PathVariable ticker: String): ResponseEntity<Map<String, Any>> {
-        val count = cacheService.evict(ticker)
-        return ResponseEntity.ok(mapOf("evicted" to count, "ticker" to ticker.uppercase()))
+        val screenerEvicted = cacheService.evict(ticker)
+        val massiveEvicted = massiveApi.evictTicker(ticker)
+        val fmpEvicted = fmpApi.evictTicker(ticker)
+        return ResponseEntity.ok(mapOf(
+            "ticker" to ticker.uppercase(),
+            "evicted" to (screenerEvicted + massiveEvicted + fmpEvicted),
+            "screener" to screenerEvicted,
+            "massive" to massiveEvicted,
+            "fmp" to fmpEvicted,
+        ))
     }
 
-    /** Evict all cached results */
+    /** Evict all cached results across all cache layers */
     @DeleteMapping
     fun evictAll(): ResponseEntity<Map<String, Any>> {
-        val count = cacheService.evictAll()
-        return ResponseEntity.ok(mapOf("evicted" to count))
+        val screenerEvicted = cacheService.evictAll()
+        val massiveEvicted = massiveApi.evictAll()
+        val fmpEvicted = fmpApi.evictAll()
+        return ResponseEntity.ok(mapOf(
+            "evicted" to (screenerEvicted + massiveEvicted + fmpEvicted),
+            "screener" to screenerEvicted,
+            "massive" to massiveEvicted,
+            "fmp" to fmpEvicted,
+        ))
     }
 }
