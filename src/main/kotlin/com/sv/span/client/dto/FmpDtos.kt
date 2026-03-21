@@ -31,6 +31,8 @@ data class FmpIncomeStatementDto(
     val fillingDate: String? = null,           // legacy typo variant
     val acceptedDate: String? = null,
     val revenue: Double? = null,
+    val totalRevenue: Double? = null,          // banks: sometimes populated instead of revenue
+    val netInterestIncome: Double? = null,     // banks: interest income net of expense
     val grossProfit: Double? = null,
     val operatingIncome: Double? = null,
     val netIncome: Double? = null,

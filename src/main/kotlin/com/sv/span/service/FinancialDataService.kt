@@ -112,7 +112,9 @@ class FinancialDataService(
 
     private fun buildIncomeMap(inc: FmpIncomeStatementDto): Map<String, FinancialField> {
         val map = mutableMapOf<String, FinancialField>()
-        inc.revenue?.let { map["revenues"] = FinancialField(value = it, unit = "USD", label = "Revenues") }
+        // revenue → totalRevenue → netInterestIncome (banks like SoFi report differently)
+        val rev = inc.revenue ?: inc.totalRevenue ?: inc.netInterestIncome
+        rev?.let { map["revenues"] = FinancialField(value = it, unit = "USD", label = "Revenues") }
         inc.grossProfit?.let { map["gross_profit"] = FinancialField(value = it, unit = "USD", label = "Gross Profit") }
         inc.operatingIncome?.let { map["operating_income_loss"] = FinancialField(value = it, unit = "USD", label = "Operating Income/Loss") }
         inc.netIncome?.let { map["net_income_loss"] = FinancialField(value = it, unit = "USD", label = "Net Income/Loss") }
