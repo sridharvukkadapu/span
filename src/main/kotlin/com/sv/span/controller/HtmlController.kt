@@ -1469,9 +1469,9 @@ class HtmlController(
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>Current Revenue (TTM)</td>
-                                    <td><input type="number" id="rev_r" value="${data.ttmRevenue?.toLong() ?: 0}" step="1" class="scenario-input" readonly></td>
-                                    <td><input type="number" id="rev_g" value="${data.ttmRevenue?.toLong() ?: 0}" step="1" class="scenario-input" readonly></td>
+                                    <td>Current Revenue (TTM, Bn$)</td>
+                                    <td><input type="number" id="rev_r" value="${"%.4f".format((data.ttmRevenue ?: 0.0) / 1_000_000_000)}" step="0.01" class="scenario-input" readonly></td>
+                                    <td><input type="number" id="rev_g" value="${"%.4f".format((data.ttmRevenue ?: 0.0) / 1_000_000_000)}" step="0.01" class="scenario-input" readonly></td>
                                 </tr>
                                 <tr>
                                     <td>Growth Rate %</td>
@@ -1489,9 +1489,9 @@ class HtmlController(
                                     <td><input type="number" id="pe_g" value="${g.peMultiple}" step="0.5" class="scenario-input" oninput="calculate()"></td>
                                 </tr>
                                 <tr>
-                                    <td>Shares Outstanding</td>
-                                    <td><input type="number" id="shares_r" value="${data.sharesOutstanding?.toLong() ?: 1}" step="1" class="scenario-input" readonly></td>
-                                    <td><input type="number" id="shares_g" value="${data.sharesOutstanding?.toLong() ?: 1}" step="1" class="scenario-input" readonly></td>
+                                    <td>Shares Outstanding (Bn)</td>
+                                    <td><input type="number" id="shares_r" value="${"%.4f".format((data.sharesOutstanding ?: 1.0) / 1_000_000_000)}" step="0.001" class="scenario-input" readonly></td>
+                                    <td><input type="number" id="shares_g" value="${"%.4f".format((data.sharesOutstanding ?: 1.0) / 1_000_000_000)}" step="0.001" class="scenario-input" readonly></td>
                                 </tr>
                                 <tr>
                                     <td>Dilution % / Year</td>
@@ -1576,14 +1576,16 @@ class HtmlController(
                     return isNaN(v) ? fallback : v;
                 }
 
-                function fmtLarge(v) {
+                // Revenue and shares inputs are in billions; outputs are also in billions
+                function fmtBillions(v) {
                     if (v == null || isNaN(v)) return 'N/A';
-                    var a = Math.abs(v), s = v < 0 ? '-' : '';
-                    if (a >= 1e12) return s + '${dollar}' + (a/1e12).toFixed(2) + 'T';
-                    if (a >= 1e9)  return s + '${dollar}' + (a/1e9).toFixed(2)  + 'B';
-                    if (a >= 1e6)  return s + '${dollar}' + (a/1e6).toFixed(2)  + 'M';
-                    if (a >= 1e3)  return s + '${dollar}' + (a/1e3).toFixed(1)  + 'K';
-                    return s + '${dollar}' + a.toFixed(2);
+                    var s = v < 0 ? '-' : '';
+                    return s + '${dollar}' + Math.abs(v).toFixed(2) + 'B';
+                }
+
+                function fmtShares(v) {
+                    if (v == null || isNaN(v)) return 'N/A';
+                    return Math.abs(v).toFixed(2) + 'B';
                 }
 
                 function fmtPrice(v) {
@@ -1592,6 +1594,7 @@ class HtmlController(
                 }
 
                 function calcScenario(suffix) {
+                    // rev and shares are in billions; growth/margin/dil as fractions; pe is a multiple
                     var rev    = valOr('rev_'    + suffix, 0);
                     var growth = valOr('growth_' + suffix, 10) / 100;
                     var margin = valOr('margin_' + suffix, 15) / 100;
@@ -1600,6 +1603,7 @@ class HtmlController(
                     var dil    = valOr('dil_'    + suffix, 2)  / 100;
                     var years  = valOr('years_'  + suffix, 5);
 
+                    // All money values stay in billions; price = mcap_B / shares_B (gives dollars)
                     var futureRev    = rev    * Math.pow(1 + growth, years);
                     var futureEarn   = futureRev * margin;
                     var futureMcap   = futureEarn * pe;
@@ -1607,9 +1611,9 @@ class HtmlController(
                     var futurePrice  = futureShares > 0 ? futureMcap / futureShares : 0;
                     var gain         = CURRENT_PRICE > 0 ? (futurePrice - CURRENT_PRICE) / CURRENT_PRICE * 100 : 0;
 
-                    document.getElementById('out_rev_'   + suffix).textContent = fmtLarge(futureRev);
-                    document.getElementById('out_earn_'  + suffix).textContent = fmtLarge(futureEarn);
-                    document.getElementById('out_mcap_'  + suffix).textContent = fmtLarge(futureMcap);
+                    document.getElementById('out_rev_'   + suffix).textContent = fmtBillions(futureRev);
+                    document.getElementById('out_earn_'  + suffix).textContent = fmtBillions(futureEarn);
+                    document.getElementById('out_mcap_'  + suffix).textContent = fmtBillions(futureMcap);
                     document.getElementById('out_price_' + suffix).textContent = fmtPrice(futurePrice);
 
                     document.getElementById('res_price_' + suffix).textContent = fmtPrice(futurePrice);
