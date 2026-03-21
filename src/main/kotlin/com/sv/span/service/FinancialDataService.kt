@@ -36,12 +36,16 @@ class FinancialDataService(
             emptyList()
         }
 
-        if (massiveData.isNotEmpty()) {
+        if (massiveData.size >= 4) {
             log.debug("Using Massive financials for {} ({} quarters)", symbol, massiveData.size)
             return massiveData.sortedByEndDateDescending()
         }
 
-        log.info("Massive has no financials for {}. Falling back to FMP.", symbol)
+        if (massiveData.isNotEmpty()) {
+            log.info("Massive returned only {} quarter(s) for {} — not enough for TTM. Falling back to FMP.", massiveData.size, symbol)
+        } else {
+            log.info("Massive has no financials for {}. Falling back to FMP.", symbol)
+        }
         return try {
             val incomeStmts = fmpApi.getIncomeStatements(symbol, "quarter", limit)
             val balanceSheets = fmpApi.getBalanceSheets(symbol, "quarter", limit)

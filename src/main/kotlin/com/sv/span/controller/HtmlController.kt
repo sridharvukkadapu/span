@@ -1470,8 +1470,8 @@ class HtmlController(
                             <tbody>
                                 <tr>
                                     <td>Current Revenue (TTM)</td>
-                                    <td><input type="number" id="rev_r" value="${data.ttmRevenue ?: 0.0}" step="0.01" class="scenario-input" readonly></td>
-                                    <td><input type="number" id="rev_g" value="${data.ttmRevenue ?: 0.0}" step="0.01" class="scenario-input" readonly></td>
+                                    <td><input type="number" id="rev_r" value="${data.ttmRevenue?.toLong() ?: 0}" step="1" class="scenario-input" readonly></td>
+                                    <td><input type="number" id="rev_g" value="${data.ttmRevenue?.toLong() ?: 0}" step="1" class="scenario-input" readonly></td>
                                 </tr>
                                 <tr>
                                     <td>Growth Rate %</td>
@@ -1490,8 +1490,8 @@ class HtmlController(
                                 </tr>
                                 <tr>
                                     <td>Shares Outstanding</td>
-                                    <td><input type="number" id="shares_r" value="${data.sharesOutstanding ?: 1.0}" step="0.001" class="scenario-input" readonly></td>
-                                    <td><input type="number" id="shares_g" value="${data.sharesOutstanding ?: 1.0}" step="0.001" class="scenario-input" readonly></td>
+                                    <td><input type="number" id="shares_r" value="${data.sharesOutstanding?.toLong() ?: 1}" step="1" class="scenario-input" readonly></td>
+                                    <td><input type="number" id="shares_g" value="${data.sharesOutstanding?.toLong() ?: 1}" step="1" class="scenario-input" readonly></td>
                                 </tr>
                                 <tr>
                                     <td>Dilution % / Year</td>
