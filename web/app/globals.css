@@ -1,0 +1,181 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: #03070f;
+    color: #e2e8f0;
+    font-family: var(--font-body), -apple-system, sans-serif;
+  }
+
+  /* Subtle dot grid texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  ::selection {
+    background-color: rgba(16,185,129,0.25);
+    color: #e2e8f0;
+  }
+
+  ::-webkit-scrollbar         { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track   { background: transparent; }
+  ::-webkit-scrollbar-thumb   { background: #1e2d45; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2a3f5c; }
+}
+
+@layer utilities {
+  /* ── Brand gradient ── */
+  .text-gradient {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 60%, #059669 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Micro-texture noise overlay on cards ── */
+  .noise::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  /* ── Card base ── */
+  .card {
+    background: #0a1221;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .card:hover {
+    border-color: rgba(255,255,255,0.12);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .card-interactive:hover {
+    border-color: rgba(16,185,129,0.2);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.08);
+    transform: translateY(-1px);
+  }
+
+  /* ── Shimmer skeleton ── */
+  .skeleton {
+    background: linear-gradient(90deg, #0f1a2e 25%, #162036 50%, #0f1a2e 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.8s infinite;
+    border-radius: 6px;
+  }
+
+  /* ── Number/mono ── */
+  .num {
+    font-family: var(--font-mono), monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Signal colour tokens ── */
+  .signal-buy  { color: #10b981; }
+  .signal-sell { color: #ef4444; }
+  .signal-hold { color: #f59e0b; }
+
+  /* ── CTA button styles ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: all 0.18s ease;
+    text-decoration: none;
+    border: 1px solid transparent;
+    font-family: var(--font-body), sans-serif;
+  }
+  .btn-primary {
+    background: rgba(16,185,129,0.12);
+    color: #34d399;
+    border-color: rgba(16,185,129,0.22);
+  }
+  .btn-primary:hover {
+    background: rgba(16,185,129,0.2);
+    border-color: rgba(16,185,129,0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(16,185,129,0.15);
+  }
+  .btn-secondary {
+    background: rgba(255,255,255,0.04);
+    color: #94a3b8;
+    border-color: rgba(255,255,255,0.08);
+  }
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.08);
+    color: #e2e8f0;
+    border-color: rgba(255,255,255,0.15);
+    transform: translateY(-1px);
+  }
+  .btn-gold {
+    background: rgba(245,158,11,0.10);
+    color: #fbbf24;
+    border-color: rgba(245,158,11,0.2);
+  }
+  .btn-gold:hover {
+    background: rgba(245,158,11,0.18);
+    border-color: rgba(245,158,11,0.35);
+    transform: translateY(-1px);
+  }
+  .btn-blue {
+    background: rgba(59,130,246,0.12);
+    color: #93c5fd;
+    border-color: rgba(59,130,246,0.22);
+  }
+  .btn-blue:hover {
+    background: rgba(59,130,246,0.2);
+    border-color: rgba(59,130,246,0.35);
+    transform: translateY(-1px);
+  }
+
+  /* ── Scrollbar hide utility ── */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+
+  /* ── Tag pill ── */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-family: var(--font-mono), monospace;
+  }
+
+  /* ── Check dot bar ── */
+  .dot-green { background: #10b981; }
+  .dot-red   { background: rgba(239,68,68,0.5); }
+}

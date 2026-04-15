@@ -1,0 +1,5 @@
+{
+  "env": {
+    "API_BASE_URL": "@span_api_base_url"
+  }
+}
