@@ -1,5 +1,5 @@
 {
-  "env": {
-    "API_BASE_URL": "@span_api_base_url"
-  }
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs"
 }

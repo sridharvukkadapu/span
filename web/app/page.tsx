@@ -4,6 +4,7 @@ import TickerSearchForm from './components/TickerSearchForm'
 import RecentlyViewed from './components/RecentlyViewed'
 import { api } from '@/lib/api'
 import SignalBadge from './components/SignalBadge'
+import type { DashboardStock } from '@/lib/types'
 
 export const revalidate = 60
 
@@ -59,9 +60,9 @@ const features = [
 ]
 
 export default async function HomePage() {
-  const dashboard = await api.dashboard(100).catch(() => null)
-  const topBuys    = dashboard?.stocks.filter(s => s.signal === 'BUY').slice(0, 6) ?? []
-  const buyCount   = dashboard?.stocks.filter(s => s.signal === 'BUY').length ?? 0
+  const dashboard   = await api.dashboard(100).catch(() => null)
+  const topBuys     = dashboard?.stocks.filter(s => s.signal === 'BUY').slice(0, 6) ?? []
+  const buyCount    = dashboard?.stocks.filter(s => s.signal === 'BUY').length ?? 0
   const totalScanned = dashboard?.stocks.length ?? 0
 
   return (
@@ -82,13 +83,10 @@ export default async function HomePage() {
 
       {/* ── Hero ── */}
       <section className="relative overflow-hidden py-24 px-5">
-        {/* Ambient glow */}
         <div className="pointer-events-none absolute inset-0">
           <div
             className="absolute left-1/2 top-0 -translate-x-1/2 w-[700px] h-[500px] opacity-30"
-            style={{
-              background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.18) 0%, transparent 65%)',
-            }}
+            style={{ background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.18) 0%, transparent 65%)' }}
           />
           <div
             className="absolute left-1/4 bottom-0 w-[400px] h-[300px] opacity-20"
@@ -97,38 +95,26 @@ export default async function HomePage() {
         </div>
 
         <div className="relative z-10 max-w-3xl mx-auto text-center">
-          {/* Live badge */}
           {totalScanned > 0 && (
             <div
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold mb-8 animate-fade-in"
-              style={{
-                background: 'rgba(16,185,129,0.08)',
-                border: '1px solid rgba(16,185,129,0.2)',
-                color: '#34d399',
-              }}
+              style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' }}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
               <span className="font-mono">{buyCount}</span>
-              <span className="text-emerald-500/60">BUY signals across</span>
+              <span className="opacity-60">BUY signals across</span>
               <span className="font-mono">{totalScanned}</span>
-              <span className="text-emerald-500/60">stocks</span>
+              <span className="opacity-60">stocks</span>
             </div>
           )}
 
-          {/* Headline */}
-          <h1
-            className="font-display text-6xl sm:text-7xl leading-[1.0] mb-6 animate-fade-up"
-            style={{ animationDelay: '0.05s' }}
-          >
+          <h1 className="font-display text-6xl sm:text-7xl leading-[1.0] mb-6 animate-fade-up" style={{ animationDelay: '0.05s' }}>
             <span className="text-white">Invest with</span>
             <br />
             <span className="text-gradient">conviction.</span>
           </h1>
 
-          <p
-            className="text-mist text-lg leading-relaxed max-w-xl mx-auto mb-10 font-body animate-fade-up"
-            style={{ animationDelay: '0.12s' }}
-          >
+          <p className="text-mist text-lg leading-relaxed max-w-xl mx-auto mb-10 font-body animate-fade-up" style={{ animationDelay: '0.12s' }}>
             Fundamental analysis, backtesting, and DCF valuation in seconds.
             Search any ticker for an instant signal.
           </p>
@@ -148,75 +134,17 @@ export default async function HomePage() {
         <section className="max-w-5xl mx-auto px-5 pb-16">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              <div
-                className="w-1 h-4 rounded-full"
-                style={{ background: 'linear-gradient(180deg, #34d399, #059669)' }}
-              />
-              <h2 className="text-xs font-semibold text-mist uppercase tracking-[0.1em]">
-                Top BUY Signals
-              </h2>
+              <div className="w-1 h-4 rounded-full" style={{ background: 'linear-gradient(180deg, #34d399, #059669)' }} />
+              <h2 className="text-xs font-semibold text-mist uppercase tracking-[0.1em]">Top BUY Signals</h2>
             </div>
-            <Link
-              href="/dashboard?signal=BUY"
-              className="text-xs font-semibold transition-colors"
-              style={{ color: '#34d399' }}
-            >
+            <Link href="/dashboard?signal=BUY" className="text-xs font-semibold" style={{ color: '#34d399' }}>
               All {buyCount} →
             </Link>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {topBuys.map((s, i) => (
-              <Link
-                key={s.symbol}
-                href={`/view/${s.symbol}`}
-                className="group relative rounded-xl p-4 transition-all duration-200 hover:-translate-y-0.5"
-                style={{
-                  background: '#0a1221',
-                  border: '1px solid rgba(255,255,255,0.07)',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-                  animationDelay: `${i * 0.05}s`,
-                }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget as HTMLElement
-                  el.style.borderColor = 'rgba(16,185,129,0.22)'
-                  el.style.boxShadow = '0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(16,185,129,0.08)'
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget as HTMLElement
-                  el.style.borderColor = 'rgba(255,255,255,0.07)'
-                  el.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.04)'
-                }}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div className="font-mono font-bold text-white text-sm tracking-wider">{s.symbol}</div>
-                    <div className="text-[10px] text-smoke mt-0.5 truncate max-w-[110px]">{s.companyName}</div>
-                  </div>
-                  <SignalBadge signal={s.signal} size="sm" />
-                </div>
-
-                <div className="flex items-center justify-between mt-2">
-                  <span className="font-mono text-sm font-bold text-white">{s.price ?? '—'}</span>
-                  <span
-                    className="font-mono text-xs font-bold"
-                    style={{ color: s.score >= 15 ? '#34d399' : '#60a5fa' }}
-                  >
-                    {s.score}pts
-                  </span>
-                </div>
-
-                {/* Check bar */}
-                <div className="flex gap-0.5 mt-3">
-                  {Array.from({ length: s.totalChecks }).map((_, i) => (
-                    <span
-                      key={i}
-                      className="flex-1 h-0.5 rounded-full transition-all"
-                      style={{ background: i < s.greens ? '#10b981' : 'rgba(239,68,68,0.35)' }}
-                    />
-                  ))}
-                </div>
-              </Link>
+            {topBuys.map((s) => (
+              <BuyCard key={s.symbol} stock={s} />
             ))}
           </div>
         </section>
@@ -225,25 +153,16 @@ export default async function HomePage() {
       {/* ── Feature grid ── */}
       <section className="max-w-5xl mx-auto px-5 pb-24">
         <div className="flex items-center gap-3 mb-6">
-          <div
-            className="w-1 h-4 rounded-full"
-            style={{ background: 'linear-gradient(180deg, #60a5fa, #3b82f6)' }}
-          />
-          <h2 className="text-xs font-semibold text-mist uppercase tracking-[0.1em]">
-            What&apos;s inside
-          </h2>
+          <div className="w-1 h-4 rounded-full" style={{ background: 'linear-gradient(180deg, #60a5fa, #3b82f6)' }} />
+          <h2 className="text-xs font-semibold text-mist uppercase tracking-[0.1em]">What&apos;s inside</h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {features.map(({ Icon, color, title, description }) => (
             <div
               key={title}
-              className="group rounded-xl p-5 transition-all duration-200"
-              style={{
-                background: '#0a1221',
-                border: '1px solid rgba(255,255,255,0.07)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
-              }}
+              className="rounded-xl p-5"
+              style={{ background: '#0a1221', border: '1px solid rgba(255,255,255,0.07)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}
             >
               <div
                 className="w-9 h-9 rounded-lg flex items-center justify-center mb-4"
@@ -262,5 +181,40 @@ export default async function HomePage() {
         <Footer />
       </div>
     </div>
+  )
+}
+
+function BuyCard({ stock: s }: { stock: DashboardStock }) {
+  return (
+    <Link
+      href={`/view/${s.symbol}`}
+      className="group relative rounded-xl p-4 block transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-500/25 hover:shadow-elevated"
+      style={{ background: '#0a1221', border: '1px solid rgba(255,255,255,0.07)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <div className="font-mono font-bold text-white text-sm tracking-wider">{s.symbol}</div>
+          <div className="text-[10px] text-smoke mt-0.5 truncate max-w-[110px]">{s.companyName}</div>
+        </div>
+        <SignalBadge signal={s.signal} size="sm" />
+      </div>
+
+      <div className="flex items-center justify-between mt-2">
+        <span className="font-mono text-sm font-bold text-white">{s.price ?? '—'}</span>
+        <span className="font-mono text-xs font-bold" style={{ color: s.score >= 15 ? '#34d399' : '#60a5fa' }}>
+          {s.score}pts
+        </span>
+      </div>
+
+      <div className="flex gap-0.5 mt-3">
+        {Array.from({ length: s.totalChecks }).map((_, i) => (
+          <span
+            key={i}
+            className="flex-1 h-0.5 rounded-full"
+            style={{ background: i < s.greens ? '#10b981' : 'rgba(239,68,68,0.35)' }}
+          />
+        ))}
+      </div>
+    </Link>
   )
 }

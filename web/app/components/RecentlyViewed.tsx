@@ -33,25 +33,10 @@ export default function RecentlyViewed() {
           <Link
             key={t}
             href={`/view/${t}`}
-            className="font-mono text-xs font-bold tracking-widest transition-all"
+            className="font-mono text-xs font-bold tracking-widest transition-all px-3 py-1 rounded-md text-smoke hover:text-emerald-400"
             style={{
-              padding: '4px 12px',
-              borderRadius: '6px',
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(255,255,255,0.08)',
-              color: '#64748b',
-            }}
-            onMouseEnter={e => {
-              const el = e.currentTarget as HTMLElement
-              el.style.background    = 'rgba(16,185,129,0.08)'
-              el.style.borderColor   = 'rgba(16,185,129,0.2)'
-              el.style.color         = '#34d399'
-            }}
-            onMouseLeave={e => {
-              const el = e.currentTarget as HTMLElement
-              el.style.background    = 'rgba(255,255,255,0.04)'
-              el.style.borderColor   = 'rgba(255,255,255,0.08)'
-              el.style.color         = '#64748b'
             }}
           >
             {t}
