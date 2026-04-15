@@ -38,6 +38,7 @@ export default function TickerSearchForm() {
       </div>
       <button
         type="submit"
+        aria-label="Analyze ticker"
         className="px-6 py-3 rounded-xl font-semibold text-sm transition-all hover:-translate-y-0.5 active:scale-95"
         style={{
           background:  'linear-gradient(135deg, #10b981 0%, #059669 100%)',

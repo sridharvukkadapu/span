@@ -111,13 +111,15 @@ function SearchInput() {
           type="text"
           placeholder="TICKER"
           maxLength={6}
-          className="w-24 pl-3 pr-3 py-1.5 rounded-md bg-surface border border-white/[0.08] text-white text-xs font-mono font-bold tracking-widest uppercase placeholder:text-smoke placeholder:normal-case placeholder:tracking-normal placeholder:font-sans focus:outline-none focus:border-emerald-500/40 focus:bg-surface-2 transition-all"
+          aria-label="Search by ticker symbol"
+          className="w-24 pl-3 pr-3 py-2.5 min-h-[44px] rounded-md bg-surface border border-white/[0.08] text-white text-xs font-mono font-bold tracking-widest uppercase placeholder:text-smoke placeholder:normal-case placeholder:tracking-normal placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/40 focus:bg-surface-2 transition-all"
         />
       </div>
       <button
         type="submit"
-        className="px-3 py-1.5 rounded-md bg-emerald-500/12 border border-emerald-500/22 text-emerald-400 text-xs font-semibold transition-all hover:bg-emerald-500/20 hover:border-emerald-500/35 active:scale-95"
-        style={{ background: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.22)' }}
+        aria-label="Search ticker"
+        className="px-3 py-2.5 min-h-[44px] rounded-md text-emerald-400 text-xs font-semibold transition-all hover:bg-emerald-500/20 hover:border-emerald-500/35 active:scale-95 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+        style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.22)' }}
       >
         Go
       </button>

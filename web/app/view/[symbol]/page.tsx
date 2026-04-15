@@ -65,8 +65,12 @@ export default async function ScreenerPage({ params }: Props) {
               {/* Left: score ring + signal */}
               <div className="flex flex-col items-center lg:items-start gap-4">
                 {/* Score Arc Ring */}
-                <div className="relative w-40 h-40 flex-shrink-0">
-                  <svg viewBox="0 0 160 160" className="w-full h-full">
+                <div
+                  className="relative w-40 h-40 flex-shrink-0"
+                  role="img"
+                  aria-label={`Score ${computedScore} out of 20 — ${r.signal} signal`}
+                >
+                  <svg viewBox="0 0 160 160" className="w-full h-full" aria-hidden="true">
                     {/* Track */}
                     <circle
                       cx={cx} cy={cy} r={R}
@@ -181,19 +185,19 @@ export default async function ScreenerPage({ params }: Props) {
               {/* Right: CTA buttons */}
               <div className="flex lg:flex-col gap-2 flex-wrap lg:justify-start">
                 <Link href={`/backtest/${symbol}`} className="btn btn-ghost text-[10px]">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                   Backtest
                 </Link>
                 <Link href={`/basic-analyzer/${symbol}`} className="btn btn-ghost text-[10px]">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                   Basic
                 </Link>
                 <Link href={`/analyzer/${symbol}`} className="btn btn-ghost text-[10px]">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
                   DCF
                 </Link>
                 <Link href="/dashboard" className="btn btn-gold text-[10px]">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 20 18 10"/><polyline points="12 20 12 4"/><polyline points="6 20 6 14"/></svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="18 20 18 10"/><polyline points="12 20 12 4"/><polyline points="6 20 6 14"/></svg>
                   Board
                 </Link>
                 <WatchlistButton symbol={symbol} />
@@ -477,28 +481,56 @@ function MiniMetric({ label, value, accent }: { label: string; value: string | n
   )
 }
 
-/* ── Revenue bar chart ── */
+/* ── Parse formatted revenue string → raw number for bar widths ── */
+function parseRevenue(formatted: string): number {
+  if (!formatted) return 0
+  const s = formatted.replace(/[$,\s]/g, '').toUpperCase()
+  const match = s.match(/^([\d.]+)([BKMG]?)$/)
+  if (!match) return 0
+  const n = parseFloat(match[1])
+  const suffix = match[2]
+  if (suffix === 'B') return n * 1e9
+  if (suffix === 'M') return n * 1e6
+  if (suffix === 'K') return n * 1e3
+  if (suffix === 'G') return n * 1e9
+  return n
+}
+
+/* ── Revenue bar chart (real relative widths) ── */
 function RevenueChart({ years }: { years: { fiscalYear: string; revenueFormatted: string }[] }) {
-  // We can't do actual SVG bar chart without numbers, so show a styled table with implicit bar widths
   if (years.length === 0) return null
+
+  const values = years.map(y => parseRevenue(y.revenueFormatted))
+  const maxVal  = Math.max(...values, 1)
+
   return (
-    <div className="space-y-2">
-      {years.map((y, i) => (
-        <div key={y.fiscalYear} className="flex items-center gap-3">
-          <span className="num text-[11px] text-slate-500 w-10 shrink-0 text-right">{y.fiscalYear}</span>
-          <div className="flex-1 h-5 rounded-md overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
+    <div className="space-y-2" role="list" aria-label="Annual revenue">
+      {years.map((y, i) => {
+        const pct     = Math.max(4, (values[i] / maxVal) * 100)
+        const isLatest = i === 0
+        return (
+          <div key={y.fiscalYear} className="flex items-center gap-3" role="listitem">
+            <span className="num text-[11px] text-slate-500 w-10 shrink-0 text-right">{y.fiscalYear}</span>
             <div
-              className="h-full rounded-md animate-slide-right"
-              style={{
-                width: `${Math.max(15, 100 - i * 8)}%`,
-                background: `linear-gradient(90deg, rgba(16,185,129,0.35), rgba(16,185,129,0.15))`,
-                animationDelay: `${i * 0.07}s`,
-              }}
-            />
+              className="flex-1 h-5 rounded-md overflow-hidden"
+              style={{ background: 'rgba(255,255,255,0.03)' }}
+              aria-hidden="true"
+            >
+              <div
+                className="h-full rounded-md animate-slide-right"
+                style={{
+                  width: `${pct}%`,
+                  background: isLatest
+                    ? 'linear-gradient(90deg, rgba(16,185,129,0.5), rgba(16,185,129,0.25))'
+                    : 'linear-gradient(90deg, rgba(16,185,129,0.28), rgba(16,185,129,0.12))',
+                  animationDelay: `${i * 0.07}s`,
+                }}
+              />
+            </div>
+            <span className="num text-xs font-semibold text-white w-20 shrink-0">{y.revenueFormatted}</span>
           </div>
-          <span className="num text-xs font-semibold text-white w-20 shrink-0">{y.revenueFormatted}</span>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

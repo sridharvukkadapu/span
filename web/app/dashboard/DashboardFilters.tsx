@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import type { DashboardStock, Signal } from '@/lib/types'
 
@@ -33,9 +33,17 @@ const SIGNAL_CFG = {
 }
 
 export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] }) {
-  const [signal, setSignal] = useState<string>('all')
-  const [sector, setSector] = useState<string>('all')
-  const [query,  setQuery]  = useState<string>('')
+  const [signal,      setSignal]      = useState<string>('all')
+  const [sector,      setSector]      = useState<string>('all')
+  const [query,       setQuery]       = useState<string>('')
+  const [inputValue,  setInputValue]  = useState<string>('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSearch = useCallback((value: string) => {
+    setInputValue(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setQuery(value), 200)
+  }, [])
 
   const sectors = useMemo(
     () => Array.from(new Set(stocks.map(s => sectorFor(s.symbol)))).sort(),
@@ -69,14 +77,16 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
               width="14" height="14"
               viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
               className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+              aria-hidden="true"
             >
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <input
               type="text"
               placeholder="Search ticker or name…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
+              aria-label="Search stocks by ticker or company name"
+              value={inputValue}
+              onChange={e => handleSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none transition-all"
               style={{
                 background: 'rgba(255,255,255,0.03)',
@@ -100,7 +110,9 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
                 <button
                   key={v}
                   onClick={() => setSignal(active ? 'all' : v)}
-                  className="px-2.5 py-1 rounded-md transition-all"
+                  aria-label={`Filter by ${v} signal`}
+                  aria-pressed={active}
+                  className="px-3 py-2.5 rounded-md transition-all min-h-[44px]"
                   style={{
                     background: active ? cfg.bg : 'rgba(255,255,255,0.03)',
                     border: `1px solid ${active ? cfg.border : 'rgba(255,255,255,0.07)'}`,
@@ -127,7 +139,9 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
                 <button
                   key={v}
                   onClick={() => setSector(active ? 'all' : v)}
-                  className="px-2.5 py-1 rounded-md text-[9px] font-semibold transition-all"
+                  aria-label={`Filter by ${v} sector`}
+                  aria-pressed={active}
+                  className="px-3 py-2.5 rounded-md text-[10px] font-semibold transition-all min-h-[44px]"
                   style={{
                     background: active ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.03)',
                     border: `1px solid ${active ? 'rgba(59,130,246,0.28)' : 'rgba(255,255,255,0.07)'}`,

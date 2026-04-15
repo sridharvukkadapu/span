@@ -60,18 +60,20 @@
     letter-spacing: -0.015em;
   }
   .label-xs {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    font-family: var(--font-body), sans-serif;
-  }
-  .label-sm {
     font-size: 10px;
     font-weight: 600;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.10em;
     text-transform: uppercase;
     font-family: var(--font-body), sans-serif;
+    color: #64748b; /* slate-500 — meets 4.5:1 on #08111f */
+  }
+  .label-sm {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-family: var(--font-body), sans-serif;
+    color: #64748b;
   }
 
   /* ─── Gradient text ─────────────────────── */
@@ -127,9 +129,9 @@
   .sell-border{ border-color: rgba(239,68,68,0.22); }
   .hold-border{ border-color: rgba(245,158,11,0.2); }
 
-  /* ─── Monospace data ────────────────────── */
+  /* ─── Monospace data (JetBrains Mono) ─── */
   .num {
-    font-family: var(--font-mono), monospace;
+    font-family: var(--font-mono), 'JetBrains Mono', monospace;
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum';
   }
@@ -153,7 +155,8 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 7px 16px;
+    padding: 10px 16px;      /* min 44px touch target height */
+    min-height: 44px;
     border-radius: 8px;
     font-size: 11px;
     font-weight: 600;
@@ -163,6 +166,7 @@
     border: 1px solid transparent;
     font-family: var(--font-body), sans-serif;
     white-space: nowrap;
+    cursor: pointer;
   }
   .btn-primary {
     background: rgba(16,185,129,0.12);
@@ -255,4 +259,37 @@
   }
   .animate-score-fill { animation: score-fill 1s cubic-bezier(0.4,0,0.2,1) both; }
   .animate-slide-right { animation: slide-right 0.6s cubic-bezier(0.4,0,0.2,1) both; }
+
+  /* ─── Cursor pointer on all interactive elements ─── */
+  button,
+  [role="button"],
+  a,
+  input[type="submit"],
+  input[type="button"],
+  label[for],
+  select {
+    cursor: pointer;
+  }
+
+  /* ─── Respect reduced-motion preferences ─────────── */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    .animate-fade-up,
+    .animate-fade-in,
+    .animate-pulse-dot,
+    .animate-shimmer,
+    .animate-score-fill,
+    .animate-slide-right {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
 }

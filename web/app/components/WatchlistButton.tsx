@@ -33,6 +33,8 @@ export default function WatchlistButton({ symbol }: { symbol: string }) {
     <button
       onClick={toggle}
       disabled={loading}
+      aria-label={saved ? `Remove ${symbol} from watchlist` : `Add ${symbol} to watchlist`}
+      aria-pressed={saved}
       className="btn disabled:opacity-50 transition-all"
       style={saved ? {
         background:  'rgba(245,158,11,0.10)',

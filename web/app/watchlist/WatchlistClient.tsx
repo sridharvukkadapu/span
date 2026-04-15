@@ -70,20 +70,21 @@ export default function WatchlistClient({ initialTickers }: { initialTickers: st
           <div className="flex items-center gap-1.5">
             <Link
               href={`/view/${ticker}`}
-              className="btn btn-ghost text-[9px] py-1 px-2.5"
+              className="btn btn-ghost text-[10px]"
             >
               Screener
             </Link>
             <Link
               href={`/basic-analyzer/${ticker}`}
-              className="btn btn-ghost text-[9px] py-1 px-2.5"
+              className="btn btn-ghost text-[10px]"
             >
               Analyze
             </Link>
             <button
               onClick={() => remove(ticker)}
               disabled={removing === ticker}
-              className="py-1 px-2.5 rounded-lg text-[9px] font-semibold uppercase tracking-wide transition-all"
+              aria-label={`Remove ${ticker} from watchlist`}
+              className="py-2.5 px-3 min-h-[44px] rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-all"
               style={{
                 background: 'rgba(239,68,68,0.07)',
                 border: '1px solid rgba(239,68,68,0.18)',
