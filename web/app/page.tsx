@@ -31,85 +31,66 @@ export default async function HomePage() {
         {/* ── Watchlist preview strip ── */}
         <WatchlistPreviewStrip />
 
-        {/* ── Hero search bar ── */}
-        <div className="flex flex-col items-center gap-3 py-10">
-          <h1
-            style={{
-              fontFamily:    'var(--font-serif), "Playfair Display", Georgia, serif',
-              fontSize:      'clamp(28px, 4vw, 42px)',
-              fontWeight:    700,
-              fontStyle:     'italic',
-              color:         '#111827',
-              letterSpacing: '-0.02em',
-              textAlign:     'center',
-              lineHeight:    1.15,
-            }}
-          >
-            Fundamentals. At a glance.
-          </h1>
-          <p
-            className="text-center max-w-sm"
-            style={{
-              fontFamily: 'var(--font-sans), Inter, sans-serif',
-              fontSize:   '13px',
-              color:      '#9CA3AF',
-              lineHeight: 1.6,
-            }}
-          >
-            Screens, DCF valuations, and 5-year backtests for 100+ stocks
-          </p>
-          <div className="mt-2 w-full max-w-md">
+        {/* ── Top bar: search + signal distribution ── */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-5 animate-fade-up">
+          {/* Search */}
+          <div className="flex-1 max-w-md">
             <SearchBar variant="hero" />
           </div>
-        </div>
 
-        {/* ── Stat strip ── */}
-        {stocks.length > 0 && (
-          <div className="grid grid-cols-4 gap-3 mb-6 animate-fade-up" style={{ animationDelay: '0.04s' }}>
-            {[
-              { label: 'Buy',   value: buyCount,      color: '#047857', bg: '#D1FAE5', border: 'rgba(4,120,87,0.25)' },
-              { label: 'Hold',  value: holdCount,     color: '#92400E', bg: '#FEF3C7', border: 'rgba(146,64,14,0.25)' },
-              { label: 'Sell',  value: sellCount,     color: '#991B1B', bg: '#FEE2E2', border: 'rgba(153,27,27,0.2)' },
-              { label: 'Total', value: stocks.length, color: '#374151', bg: '#FFFFFF', border: 'rgba(0,0,0,0.09)' },
-            ].map(s => (
-              <div
-                key={s.label}
-                className="rounded-xl px-4 py-3"
-                style={{
-                  background: s.bg,
-                  border:     `1px solid ${s.border}`,
-                  boxShadow:  '0 1px 3px rgba(0,0,0,0.05)',
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily:  'var(--font-serif), "Playfair Display", Georgia, serif',
-                    fontSize:    '28px',
-                    fontWeight:  700,
-                    lineHeight:  1,
-                    color:       s.color,
+          {/* Signal distribution bar */}
+          {stocks.length > 0 && (
+            <div
+              className="flex items-center gap-3 px-4 py-2.5 rounded-xl shrink-0"
+              style={{
+                background: '#FFFFFF',
+                border:     '1px solid rgba(0,0,0,0.07)',
+                boxShadow:  '0 1px 3px rgba(0,0,0,0.05)',
+              }}
+            >
+              {/* Stacked bar */}
+              <div className="flex items-center h-5 rounded-md overflow-hidden gap-px" style={{ width: 80 }}>
+                {buyCount  > 0 && <div style={{ flex: buyCount,  background: '#047857' }} className="h-full" title={`${buyCount} BUY`} />}
+                {holdCount > 0 && <div style={{ flex: holdCount, background: '#D97706' }} className="h-full" title={`${holdCount} HOLD`} />}
+                {sellCount > 0 && <div style={{ flex: sellCount, background: '#991B1B' }} className="h-full" title={`${sellCount} SELL`} />}
+              </div>
+              {/* Counts */}
+              <div className="flex items-center gap-3">
+                {[
+                  { label: 'Buy',  value: buyCount,  color: '#047857' },
+                  { label: 'Hold', value: holdCount, color: '#92400E' },
+                  { label: 'Sell', value: sellCount, color: '#991B1B' },
+                ].map(s => (
+                  <div key={s.label} className="flex flex-col items-center leading-none">
+                    <span style={{
+                      fontFamily: 'var(--font-serif), "Playfair Display", Georgia, serif',
+                      fontSize: '18px', fontWeight: 700, color: s.color,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>{s.value}</span>
+                    <span style={{
+                      fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                      fontSize: '9px', fontWeight: 500, letterSpacing: '0.08em',
+                      textTransform: 'uppercase', color: '#9CA3AF', marginTop: '2px',
+                    }}>{s.label}</span>
+                  </div>
+                ))}
+                <div style={{ width: 1, height: 24, background: 'rgba(0,0,0,0.08)' }} />
+                <div className="flex flex-col items-center leading-none">
+                  <span style={{
+                    fontFamily: 'var(--font-serif), "Playfair Display", Georgia, serif',
+                    fontSize: '18px', fontWeight: 700, color: '#374151',
                     fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  {s.value}
-                </div>
-                <div
-                  className="mt-1"
-                  style={{
-                    fontFamily:    'var(--font-sans), Inter, sans-serif',
-                    fontSize:      '10px',
-                    fontWeight:    500,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color:         '#9CA3AF',
-                  }}
-                >
-                  {s.label}
+                  }}>{stocks.length}</span>
+                  <span style={{
+                    fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                    fontSize: '9px', fontWeight: 500, letterSpacing: '0.08em',
+                    textTransform: 'uppercase', color: '#9CA3AF', marginTop: '2px',
+                  }}>Total</span>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
         {/* ── Section header ── */}
         <div className="flex items-center justify-between mb-3 animate-fade-up" style={{ animationDelay: '0.08s' }}>
@@ -265,8 +246,8 @@ export default async function HomePage() {
 const HOW_IT_WORKS = [
   {
     step: 1,
-    title: '5-Factor Screener',
-    description: 'Revenue growth, margins, balance sheet, valuation ratio, and price trend — each scored GREEN / YELLOW / RED.',
+    title: '6-Factor Screener',
+    description: 'Revenue growth, margins, balance sheet, valuation, price trend, and earnings quality — each scored GREEN / YELLOW / RED.',
   },
   {
     step: 2,
@@ -275,12 +256,12 @@ const HOW_IT_WORKS = [
   },
   {
     step: 3,
-    title: '5-Year Backtest',
-    description: 'Every signal validated against historical performance. See if the algorithm beat buy-and-hold over 5 years.',
+    title: 'DCF Valuation',
+    description: 'Bear, base, and bull scenario fair value using discounted cash flow. Edit every assumption in real time.',
   },
   {
     step: 4,
-    title: 'DCF Valuation',
-    description: 'Bear, base, and bull scenario fair value using discounted cash flow. Edit every assumption in real time.',
+    title: 'Key Financials',
+    description: 'Revenue history, margins, balance sheet strength, and 3-year price projection — all on one page.',
   },
 ]

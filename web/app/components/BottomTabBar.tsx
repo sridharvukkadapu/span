@@ -37,6 +37,18 @@ const TABS = [
     ),
     exact: false,
   },
+  {
+    href:  null as string | null,
+    label: 'Account',
+    account: true,
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    ),
+    exact: false,
+  },
 ]
 
 export default function BottomTabBar() {
@@ -71,13 +83,13 @@ export default function BottomTabBar() {
         {TABS.map(tab => {
           const active = isActive(tab.href, tab.exact)
 
-          if (tab.search) {
+          if (tab.search || (tab as { account?: boolean }).account) {
             return (
               <button
-                key="search"
-                onClick={handleSearch}
+                key={tab.label}
+                onClick={tab.search ? handleSearch : undefined}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5"
-                aria-label="Search"
+                aria-label={tab.label}
                 style={{ color: '#9CA3AF', background: 'none', border: 'none' }}
               >
                 <span style={{ color: '#9CA3AF' }}>{tab.icon}</span>

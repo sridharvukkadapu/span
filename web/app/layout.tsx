@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Playfair_Display, Inter, JetBrains_Mono } from 'next/font/google'
+import { Playfair_Display, IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google'
 import BottomTabBar from './components/BottomTabBar'
 import './globals.css'
 
@@ -11,7 +11,7 @@ const fontSerif = Playfair_Display({
   display: 'swap',
 })
 
-const fontSans = Inter({
+const fontSans = IBM_Plex_Sans({
   weight: ['300', '400', '500', '600', '700'],
   subsets: ['latin'],
   variable: '--font-sans',

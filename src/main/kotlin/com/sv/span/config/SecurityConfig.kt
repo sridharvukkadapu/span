@@ -13,12 +13,16 @@ import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames
 import org.springframework.security.oauth2.client.registration.ClientRegistration
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.web.cors.CorsConfiguration
+import org.springframework.web.cors.CorsConfigurationSource
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
 @Configuration
 @EnableWebSecurity
 class SecurityConfig(
     @Value("\${google.oauth2.client-id:}") private val googleClientId: String,
     @Value("\${google.oauth2.client-secret:}") private val googleClientSecret: String,
+    @Value("\${cors.allowed-origins:http://localhost:3000}") private val allowedOrigins: String,
 ) {
 
     /**
@@ -47,8 +51,21 @@ class SecurityConfig(
     }
 
     @Bean
+    fun corsConfigurationSource(): CorsConfigurationSource {
+        val config = CorsConfiguration()
+        config.allowedOriginPatterns = allowedOrigins.split(",").map { it.trim() }
+        config.allowedMethods = listOf("GET", "POST", "DELETE", "OPTIONS")
+        config.allowedHeaders = listOf("*")
+        config.allowCredentials = true
+        val source = UrlBasedCorsConfigurationSource()
+        source.registerCorsConfiguration("/api/**", config)
+        return source
+    }
+
+    @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         http
+            .cors { it.configurationSource(corsConfigurationSource()) }
             .authorizeHttpRequests { it.anyRequest().permitAll() }
             .oauth2Login { oauth2 ->
                 oauth2.defaultSuccessUrl("/watchlist", false)

@@ -97,7 +97,11 @@ function CheckSegBar({ greens, yellows, reds, total }: { greens: number; yellows
     empty:  'rgba(0,0,0,0.08)',
   }
   return (
-    <div className="flex items-center gap-[2px]" aria-label={`${greens} pass, ${yellows} warn, ${reds} fail`}>
+    <div
+      className="flex items-center gap-[2px]"
+      aria-label={`${greens} pass, ${yellows} warn, ${reds} fail`}
+      title={`${greens} green / ${yellows} yellow / ${reds} red out of ${total} checks`}
+    >
       {segs.map((s, i) => (
         <span
           key={i}
@@ -240,7 +244,7 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
                   key={v}
                   onClick={() => setSignal(active ? 'all' : v)}
                   aria-pressed={active}
-                  className="px-2.5 py-1 rounded-full transition-all"
+                  className="px-3 rounded-full transition-all"
                   style={{
                     background:    active ? cfg.active : 'transparent',
                     border:        `1px solid ${active ? cfg.border : 'rgba(0,0,0,0.09)'}`,
@@ -250,6 +254,7 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
                     letterSpacing: '0.08em',
                     fontFamily:    'var(--font-sans), Inter, sans-serif',
                     textTransform: 'uppercase',
+                    minHeight:     '28px',
                   }}
                 >
                   {v}
@@ -269,7 +274,7 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
                   key={v}
                   onClick={() => setSector(active ? 'all' : v)}
                   aria-pressed={active}
-                  className="px-2.5 py-1 rounded-full transition-all"
+                  className="px-3 rounded-full transition-all"
                   style={{
                     background:    active ? '#111827' : 'transparent',
                     border:        `1px solid ${active ? '#111827' : 'rgba(0,0,0,0.09)'}`,
@@ -277,6 +282,7 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
                     fontSize:      '10px',
                     fontWeight:    500,
                     fontFamily:    'var(--font-sans), Inter, sans-serif',
+                    minHeight:     '28px',
                   }}
                 >
                   {v}

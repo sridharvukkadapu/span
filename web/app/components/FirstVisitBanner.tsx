@@ -56,7 +56,7 @@ export default function FirstVisitBanner() {
               lineHeight: 1.5,
             }}
           >
-            Algorithmic screening + DCF valuation + 5-year backtest — all in one score. Search any ticker to get started.
+            SPAN scores every stock on 6 fundamentals. Search any ticker or browse the leaderboard below.
           </p>
         </div>
         <button

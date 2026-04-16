@@ -14,7 +14,6 @@ export default function Navbar({ symbol }: NavbarProps) {
   const symbolLinks = symbol
     ? [
         { href: `/view/${symbol}`,          label: 'Analysis'  },
-        { href: `/backtest/${symbol}`,       label: 'Backtest'  },
         { href: `/basic-analyzer/${symbol}`, label: 'Valuation' },
         { href: `/analyzer/${symbol}`,       label: 'DCF'       },
       ]

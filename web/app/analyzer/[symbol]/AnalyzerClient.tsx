@@ -48,13 +48,13 @@ const SLIDER_CONFIG: {
   step:  number
   unit:  string
 }[] = [
-  { key: 'revenueGrowthPct', label: 'Revenue Growth',  min: 0,  max: 50, step: 0.5, unit: '%' },
-  { key: 'profitMarginPct',  label: 'Profit Margin',   min: 0,  max: 60, step: 0.5, unit: '%' },
-  { key: 'fcfMarginPct',     label: 'FCF Margin',      min: 0,  max: 40, step: 0.5, unit: '%' },
-  { key: 'peMultiple',       label: 'P/E Multiple',    min: 5,  max: 60, step: 0.5, unit: 'x' },
-  { key: 'pfcfMultiple',     label: 'P/FCF Multiple',  min: 5,  max: 80, step: 0.5, unit: 'x' },
-  { key: 'years',            label: 'Years',           min: 1,  max: 10, step: 1,   unit: 'yr' },
-  { key: 'desiredReturnPct', label: 'Required Return', min: 0,  max: 30, step: 0.5, unit: '%' },
+  { key: 'revenueGrowthPct', label: 'Revenue Growth',  min: 0,  max: 100, step: 0.5, unit: '%' },
+  { key: 'profitMarginPct',  label: 'Profit Margin',   min: 0,  max: 60,  step: 0.5, unit: '%' },
+  { key: 'fcfMarginPct',     label: 'FCF Margin',      min: 0,  max: 60,  step: 0.5, unit: '%' },
+  { key: 'peMultiple',       label: 'P/E Multiple',    min: 5,  max: 200, step: 0.5, unit: 'x' },
+  { key: 'pfcfMultiple',     label: 'P/FCF Multiple',  min: 5,  max: 300, step: 0.5, unit: 'x' },
+  { key: 'years',            label: 'Years',           min: 1,  max: 10,  step: 1,   unit: 'yr' },
+  { key: 'desiredReturnPct', label: 'Required Return', min: 0,  max: 30,  step: 0.5, unit: '%' },
 ]
 
 /* ── Scenario meta ─────────────────────────────────────── */
@@ -111,7 +111,7 @@ function ScenarioSlider({
   accentColor: string
   onChange:    (v: number) => void
 }) {
-  const pct = ((value - min) / (max - min)) * 100
+  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))
 
   return (
     <div className="space-y-1.5">

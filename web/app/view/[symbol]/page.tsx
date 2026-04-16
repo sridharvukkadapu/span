@@ -21,13 +21,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const data = await api.screener(symbol).catch(() => null)
   const name = data?.companyName ?? symbol
   const signal = data?.signal ?? ''
-  const score = data ? `${data.checks.filter(c => c.light === 'GREEN').length * 2 - data.checks.filter(c => c.light === 'RED').length * 2}` : ''
+  const score = data ? (() => {
+    const g = data.checks.filter(c => c.light === 'GREEN').length
+    const y = data.checks.filter(c => c.light === 'YELLOW').length
+    const r2 = data.checks.filter(c => c.light === 'RED').length
+    const sb = data.signal === 'BUY' ? 5 : data.signal === 'SELL' ? -5 : 0
+    const cb = data.confidence === 'HIGH' ? 2 : data.confidence === 'MEDIUM' ? 1 : 0
+    return String((g * 3) + (y * 1) + (r2 * -2) + sb + cb)
+  })() : ''
   return {
     title: `${symbol} Analysis`,
-    description: `${name} fundamental analysis. Signal: ${signal}. Score: ${score}/25. Screening, DCF valuation, and 5-year backtest.`,
+    description: `${name} fundamental analysis. Signal: ${signal}. Score: ${score}/25. Screening, DCF valuation, and key financials.`,
     openGraph: {
       title: `${symbol} — ${signal} · SPAN`,
-      description: `${name} · Score ${score}/25. Fundamental screening, DCF, and backtest.`,
+      description: `${name} · Score ${score}/25. Fundamental screening and DCF valuation.`,
     },
   }
 }
@@ -48,7 +55,13 @@ export default async function ScreenerPage({ params }: Props) {
   const greens  = r.checks.filter(c => c.light === 'GREEN').length
   const yellows = r.checks.filter(c => c.light === 'YELLOW').length
   const reds    = r.checks.filter(c => c.light === 'RED').length
-  const computedScore = (greens * 2) - (reds * 2)
+
+  // Match backend DashboardService.computeScore():
+  // +3/GREEN +1/YELLOW -2/RED, +5/BUY -5/SELL, +2/HIGH +1/MEDIUM
+  const checkScore = (greens * 3) + (yellows * 1) + (reds * -2)
+  const signalBonus = r.signal === 'BUY' ? 5 : r.signal === 'SELL' ? -5 : 0
+  const confidenceBonus = r.confidence === 'HIGH' ? 2 : r.confidence === 'MEDIUM' ? 1 : 0
+  const computedScore = checkScore + signalBonus + confidenceBonus
 
   const signalColor =
     r.signal === 'BUY'  ? '#047857' :

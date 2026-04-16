@@ -37,11 +37,11 @@ const config: Config = {
       },
       fontFamily: {
         serif:   ['var(--font-serif)',  'Playfair Display', 'Georgia', 'serif'],
-        sans:    ['var(--font-sans)',   'Inter', 'system-ui', 'sans-serif'],
+        sans:    ['var(--font-sans)',   'IBM Plex Sans', 'system-ui', 'sans-serif'],
         mono:    ['var(--font-mono)',   'JetBrains Mono', 'monospace'],
         // Legacy aliases
         display: ['var(--font-serif)',  'Playfair Display', 'serif'],
-        body:    ['var(--font-sans)',   'Inter', 'sans-serif'],
+        body:    ['var(--font-sans)',   'IBM Plex Sans', 'sans-serif'],
         data:    ['var(--font-mono)',   'JetBrains Mono', 'monospace'],
       },
       borderRadius: {

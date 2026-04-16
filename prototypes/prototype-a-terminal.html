@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPAN — Stock Screener</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #050508;
+      --bg2:         #0a0a0f;
+      --bg3:         #0f0f16;
+      --border:      rgba(255,255,255,0.06);
+      --border-mid:  rgba(255,255,255,0.10);
+      --text:        #e2e8f0;
+      --text-muted:  #64748b;
+      --text-dim:    #334155;
+      --green:       #10B981;
+      --green-dim:   rgba(16,185,129,0.15);
+      --green-glow:  rgba(16,185,129,0.25);
+      --amber:       #F59E0B;
+      --amber-dim:   rgba(245,158,11,0.15);
+      --red:         #EF4444;
+      --red-dim:     rgba(239,68,68,0.15);
+      --mono:        'IBM Plex Mono', monospace;
+      --sans:        'IBM Plex Sans', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background grid texture ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Scanline overlay ── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.02) 2px,
+        rgba(0,0,0,0.02) 4px
+      );
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Layout wrapper ── */
+    .page-wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* ─────────────────────────────────────────────
+       NAVBAR
+    ───────────────────────────────────────────── */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 24px;
+      height: 52px;
+      background: rgba(5,5,8,0.90);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      margin: 0 -24px;
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: 0.35em;
+      color: var(--green);
+      text-transform: uppercase;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .live-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border-mid);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--green); }
+      50%       { opacity: 0.5; box-shadow: 0 0 12px var(--green); }
+    }
+
+    .live-pill .buy  { color: var(--green); font-weight: 600; }
+    .live-pill .hold { color: var(--amber); font-weight: 600; }
+    .live-pill .sell { color: var(--red);   font-weight: 600; }
+    .live-pill .sep  { color: var(--text-dim); }
+
+    .search-bar {
+      flex: 1;
+      min-width: 0;
+      max-width: 320px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0 12px;
+      height: 32px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .search-bar:focus-within {
+      border-color: rgba(16,185,129,0.4);
+      box-shadow: 0 0 0 3px rgba(16,185,129,0.08);
+    }
+
+    .search-bar input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+      min-width: 0;
+    }
+
+    .search-bar input::placeholder { color: var(--text-dim); }
+
+    .search-hint {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      border: 1px solid var(--text-dim);
+      border-radius: 3px;
+      padding: 1px 5px;
+      flex-shrink: 0;
+    }
+
+    .nav-spacer { flex: 1; }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .nav-btn:hover {
+      border-color: rgba(16,185,129,0.3);
+      color: var(--green);
+    }
+
+    .live-badge {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--bg);
+      background: var(--green);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+
+    /* ─────────────────────────────────────────────
+       FIRST-VISIT BANNER
+    ───────────────────────────────────────────── */
+    .banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      padding: 10px 16px;
+      background: rgba(16,185,129,0.06);
+      border: 1px solid rgba(16,185,129,0.18);
+      border-radius: 8px;
+      font-size: 12px;
+      color: rgba(16,185,129,0.9);
+    }
+
+    .banner-icon { font-size: 14px; flex-shrink: 0; }
+    .banner-text { flex: 1; }
+    .banner-text strong { color: var(--green); }
+
+    .banner-close {
+      background: none;
+      border: none;
+      color: rgba(16,185,129,0.5);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 2px 4px;
+      border-radius: 3px;
+      transition: color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .banner-close:hover { color: var(--green); }
+
+    /* ─────────────────────────────────────────────
+       WATCHLIST STRIP
+    ───────────────────────────────────────────── */
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .watchlist-wrap {
+      margin-top: 20px;
+    }
+
+    .watchlist-scroll {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .watchlist-scroll::-webkit-scrollbar { display: none; }
+
+    .watch-card {
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      min-width: 148px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .watch-card:hover {
+      border-color: rgba(16,185,129,0.25);
+      box-shadow: 0 0 20px rgba(16,185,129,0.08);
+    }
+
+    .watch-ticker {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.04em;
+    }
+
+    .watch-price {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      margin-top: 4px;
+    }
+
+    .watch-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 6px;
+    }
+
+    .watch-change {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .watch-change.up   { color: var(--green); }
+    .watch-change.down { color: var(--red); }
+
+    /* ─────────────────────────────────────────────
+       SIGNAL BADGE (reused across watchlist + table)
+    ───────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .badge-buy  { background: rgba(16,185,129,0.18); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+    .badge-hold { background: rgba(245,158,11,0.15); color: var(--amber); border: 1px solid rgba(245,158,11,0.3); }
+    .badge-sell { background: rgba(239,68,68,0.15);  color: var(--red);   border: 1px solid rgba(239,68,68,0.3);  }
+
+    /* ─────────────────────────────────────────────
+       STATS STRIP
+    ───────────────────────────────────────────── */
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    @media (max-width: 640px) {
+      .stats-strip { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .stat-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .stat-card:hover {
+      border-color: rgba(16,185,129,0.2);
+      box-shadow: 0 0 20px rgba(16,185,129,0.08);
+    }
+
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .stat-value.green { color: var(--green); }
+    .stat-value.amber { color: var(--amber); }
+    .stat-value.red   { color: var(--red);   }
+    .stat-value.muted { color: var(--text);  }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* ─────────────────────────────────────────────
+       DATA TABLE
+    ───────────────────────────────────────────── */
+    .table-section { margin-top: 28px; }
+
+    .table-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .table-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .table-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chip {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 3px 9px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.03);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip:hover, .chip.active {
+      border-color: rgba(16,185,129,0.3);
+      color: var(--green);
+      background: rgba(16,185,129,0.06);
+    }
+
+    .table-outer {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.02);
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.08) transparent;
+    }
+
+    .table-scroll::-webkit-scrollbar { height: 4px; }
+    .table-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+    table {
+      width: 100%;
+      min-width: 920px;
+      border-collapse: collapse;
+    }
+
+    thead {
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 10px 14px;
+      text-align: left;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.15s;
+    }
+
+    th:hover { color: var(--text-muted); }
+
+    th .sort-icon {
+      display: inline-block;
+      margin-left: 4px;
+      opacity: 0.4;
+      font-size: 9px;
+    }
+
+    th.sorted .sort-icon { opacity: 1; color: var(--green); }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      transition: background 0.12s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+
+    tbody tr:hover {
+      background: rgba(16,185,129,0.04);
+    }
+
+    tbody tr:hover td { cursor: default; }
+
+    td {
+      padding: 11px 14px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    /* Rank */
+    .td-rank {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+      width: 44px;
+    }
+
+    /* Ticker */
+    .td-ticker {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.06em;
+    }
+
+    /* Company */
+    .td-company {
+      font-size: 12px;
+      color: var(--text-muted);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Score arc cell */
+    .td-score {
+      width: 64px;
+    }
+
+    .score-wrap {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .score-num {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+
+    /* Price */
+    .td-price {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      text-align: right;
+    }
+
+    /* Mkt Cap */
+    .td-mktcap {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    /* Check squares */
+    .checks {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+    }
+
+    .check-sq {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+    }
+
+    .check-sq.pass { background: var(--green); }
+    .check-sq.fail { background: var(--red); }
+    .check-sq.warn { background: var(--amber); }
+
+    /* PE */
+    .td-pe {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    /* Trend */
+    .td-trend {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .td-trend.up   { color: var(--green); }
+    .td-trend.down { color: var(--red); }
+    .td-trend.flat { color: var(--text-dim); }
+
+    /* ─────────────────────────────────────────────
+       SCORE ARC SVG
+    ───────────────────────────────────────────── */
+    .arc-svg {
+      flex-shrink: 0;
+    }
+
+    /* ─────────────────────────────────────────────
+       ACCORDION
+    ───────────────────────────────────────────── */
+    .accordion {
+      margin-top: 32px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .accordion-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      background: rgba(255,255,255,0.03);
+      cursor: pointer;
+      user-select: none;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .accordion-header:hover {
+      color: var(--text);
+      background: rgba(255,255,255,0.05);
+    }
+
+    .accordion-arrow {
+      font-size: 14px;
+      transition: transform 0.25s;
+    }
+
+    .accordion.open .accordion-arrow { transform: rotate(180deg); }
+
+    .accordion-body {
+      display: none;
+      padding: 20px 18px;
+      background: rgba(255,255,255,0.02);
+      border-top: 1px solid var(--border);
+    }
+
+    .accordion.open .accordion-body { display: block; }
+
+    .how-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .how-item {
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .how-num {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--green);
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+
+    .how-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .how-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* ─────────────────────────────────────────────
+       FOOTER
+    ───────────────────────────────────────────── */
+    footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .footer-logo {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      color: var(--text-dim);
+    }
+
+    .footer-right {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      text-align: right;
+    }
+
+    .footer-right a {
+      color: var(--text-dim);
+      text-decoration: none;
+    }
+
+    .footer-right a:hover { color: var(--text-muted); }
+
+    /* ─────────────────────────────────────────────
+       COUNTER ANIMATION
+    ───────────────────────────────────────────── */
+    @keyframes count-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .stat-value {
+      animation: count-in 0.5s ease both;
+    }
+
+    .stat-card:nth-child(1) .stat-value { animation-delay: 0.1s; }
+    .stat-card:nth-child(2) .stat-value { animation-delay: 0.2s; }
+    .stat-card:nth-child(3) .stat-value { animation-delay: 0.3s; }
+    .stat-card:nth-child(4) .stat-value { animation-delay: 0.4s; }
+
+    /* ─────────────────────────────────────────────
+       TOOLTIP
+    ───────────────────────────────────────────── */
+    [data-tip] {
+      position: relative;
+    }
+
+    [data-tip]:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15,15,22,0.97);
+      border: 1px solid var(--border-mid);
+      border-radius: 5px;
+      padding: 5px 9px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 200;
+    }
+
+    /* ─────────────────────────────────────────────
+       SPARKLINE (inline trend)
+    ───────────────────────────────────────────── */
+    .spark { vertical-align: middle; margin-right: 4px; }
+
+    /* ─────────────────────────────────────────────
+       MOBILE TWEAKS
+    ───────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .page-wrap { padding: 0 12px 60px; }
+      .navbar { padding: 0 12px; gap: 10px; }
+      .live-pill { display: none; }
+      .search-bar { max-width: none; }
+      .nav-btn span { display: none; }
+      .table-header { flex-wrap: wrap; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     NAVBAR
+══════════════════════════════════════════════════ -->
+<nav class="navbar">
+  <div class="logo">S P A N</div>
+
+  <div class="live-pill">
+    <div class="live-dot"></div>
+    <span class="buy">47 BUY</span>
+    <span class="sep"> · </span>
+    <span class="hold">23 HOLD</span>
+    <span class="sep"> · </span>
+    <span class="sell">12 SELL</span>
+    <span class="sep">&nbsp;—&nbsp;</span>
+    <span class="live-badge">LIVE</span>
+  </div>
+
+  <div class="search-bar">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;opacity:0.35">
+      <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.3"/>
+      <path d="M8 8l2.5 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>
+    <input type="text" placeholder="Search ticker or company…" id="searchInput" />
+    <span class="search-hint">⌘K</span>
+  </div>
+
+  <div class="nav-spacer"></div>
+
+  <button class="nav-btn">
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M1.5 3.5h10M3.5 6.5h6M5.5 9.5h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>
+    <span>Filter</span>
+  </button>
+
+  <button class="nav-btn">
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M6.5 2v9M2 6.5l4.5-4.5 4.5 4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span>Export</span>
+  </button>
+
+  <button class="nav-btn" style="border-color:rgba(16,185,129,0.3);color:var(--green)">
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <rect x="2" y="5" width="9" height="7" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+      <path d="M4.5 5V3.5a2 2 0 0 1 4 0V5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>
+    <span>Watchlist</span>
+  </button>
+</nav>
+
+<!-- ═══════════════════════════════════════════════
+     PAGE WRAP
+══════════════════════════════════════════════════ -->
+<div class="page-wrap">
+
+  <!-- ── First-visit banner ── -->
+  <div class="banner" id="banner">
+    <span class="banner-icon">◆</span>
+    <span class="banner-text">
+      <strong>Welcome to SPAN.</strong> Scores update every 15 minutes during market hours. Click any row to see the full analysis breakdown.
+    </span>
+    <button class="banner-close" onclick="document.getElementById('banner').style.display='none'">×</button>
+  </div>
+
+  <!-- ── Watchlist Strip ── -->
+  <div class="watchlist-wrap">
+    <div class="section-label">Watchlist</div>
+    <div class="watchlist-scroll">
+
+      <div class="watch-card">
+        <div class="watch-ticker">NVDA</div>
+        <div class="watch-price">$875.40</div>
+        <div class="watch-footer">
+          <span class="watch-change up">+3.21%</span>
+          <span class="badge badge-buy">BUY</span>
+        </div>
+      </div>
+
+      <div class="watch-card">
+        <div class="watch-ticker">AAPL</div>
+        <div class="watch-price">$189.30</div>
+        <div class="watch-footer">
+          <span class="watch-change up">+0.84%</span>
+          <span class="badge badge-buy">BUY</span>
+        </div>
+      </div>
+
+      <div class="watch-card">
+        <div class="watch-ticker">META</div>
+        <div class="watch-price">$512.70</div>
+        <div class="watch-footer">
+          <span class="watch-change up">+1.55%</span>
+          <span class="badge badge-buy">BUY</span>
+        </div>
+      </div>
+
+      <div class="watch-card">
+        <div class="watch-ticker">TSLA</div>
+        <div class="watch-price">$174.50</div>
+        <div class="watch-footer">
+          <span class="watch-change down">−2.10%</span>
+          <span class="badge badge-sell">SELL</span>
+        </div>
+      </div>
+
+      <div class="watch-card">
+        <div class="watch-ticker">JPM</div>
+        <div class="watch-price">$198.20</div>
+        <div class="watch-footer">
+          <span class="watch-change up">+0.41%</span>
+          <span class="badge badge-hold">HOLD</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Stats Strip ── -->
+  <div class="stats-strip" style="margin-top:24px;">
+
+    <div class="stat-card">
+      <div class="stat-label">BUY Signals</div>
+      <div class="stat-value green" id="cnt-buy">47</div>
+      <div class="stat-sub">+6 since yesterday</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">HOLD Signals</div>
+      <div class="stat-value amber" id="cnt-hold">23</div>
+      <div class="stat-sub">−2 since yesterday</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">SELL Signals</div>
+      <div class="stat-value red" id="cnt-sell">12</div>
+      <div class="stat-sub">+1 since yesterday</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Screened Today</div>
+      <div class="stat-value muted" id="cnt-total">82</div>
+      <div class="stat-sub">S&P 500 universe</div>
+    </div>
+
+  </div>
+
+  <!-- ── Data Table ── -->
+  <div class="table-section">
+
+    <div class="table-header">
+      <span class="table-title">Screener Results</span>
+      <div class="table-actions">
+        <span class="chip active" onclick="filterTable('all',this)">All</span>
+        <span class="chip" onclick="filterTable('BUY',this)">BUY</span>
+        <span class="chip" onclick="filterTable('HOLD',this)">HOLD</span>
+        <span class="chip" onclick="filterTable('SELL',this)">SELL</span>
+      </div>
+    </div>
+
+    <div class="table-outer">
+      <div class="table-scroll">
+        <table id="mainTable">
+          <thead>
+            <tr>
+              <th data-col="rank">#<span class="sort-icon">↕</span></th>
+              <th data-col="ticker">Ticker<span class="sort-icon">↕</span></th>
+              <th data-col="company">Company<span class="sort-icon">↕</span></th>
+              <th data-col="score">Score<span class="sort-icon">↕</span></th>
+              <th data-col="signal">Signal<span class="sort-icon">↕</span></th>
+              <th data-col="price" style="text-align:right">Price<span class="sort-icon">↕</span></th>
+              <th data-col="mktcap" style="text-align:right">Mkt Cap<span class="sort-icon">↕</span></th>
+              <th data-col="checks">Checks</th>
+              <th data-col="pe" style="text-align:right">P/E<span class="sort-icon">↕</span></th>
+              <th data-col="trend">Trend<span class="sort-icon">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <!-- Rows inserted by JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── How it works accordion ── -->
+  <div class="accordion" id="howItWorks">
+    <div class="accordion-header" onclick="toggleAccordion()">
+      <span>How SPAN Scores Work</span>
+      <span class="accordion-arrow">▾</span>
+    </div>
+    <div class="accordion-body">
+      <div class="how-grid">
+        <div class="how-item">
+          <div class="how-num">01 / CHECKS</div>
+          <div class="how-title">Multi-Factor Checks</div>
+          <div class="how-desc">Each ticker is evaluated against 6 fundamental and technical checks: revenue growth, margin expansion, earnings beat, institutional flow, RSI zone, and trend strength.</div>
+        </div>
+        <div class="how-item">
+          <div class="how-num">02 / SCORE</div>
+          <div class="how-title">Composite Score</div>
+          <div class="how-desc">Checks are weighted and combined into a 0–100 score. BUY ≥ 70, HOLD 45–69, SELL &lt; 45. Scores refresh every 15 minutes during market hours.</div>
+        </div>
+        <div class="how-item">
+          <div class="how-num">03 / SIGNAL</div>
+          <div class="how-title">Signal Generation</div>
+          <div class="how-desc">Signal transitions require two consecutive periods above/below the threshold to reduce noise. Signals are not financial advice — always do your own research.</div>
+        </div>
+        <div class="how-item">
+          <div class="how-num">04 / TREND</div>
+          <div class="how-title">Price Momentum</div>
+          <div class="how-desc">The Trend column shows 30-day price momentum as a percentage, colour-coded green (positive), red (negative). Used as a secondary signal confirmation factor.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <div class="footer-logo">S P A N</div>
+    <div class="footer-right">
+      Data for illustration only · Not financial advice ·
+      <a href="#">Terms</a> · <a href="#">Privacy</a>
+      <br>© 2026 SPAN Analytics
+    </div>
+  </footer>
+
+</div><!-- /page-wrap -->
+
+<!-- ═══════════════════════════════════════════════
+     INLINE SCRIPT
+══════════════════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+
+  /* ────────────────────────────────────────
+     1. DATA
+  ──────────────────────────────────────── */
+  var stocks = [
+    {
+      rank: 1, ticker: 'NVDA', company: 'NVIDIA Corporation',
+      score: 91, signal: 'BUY',
+      price: 875.40, mktcap: '2.16T',
+      checks: [1,1,1,1,1,1],
+      pe: 68.4, trend: '+22.4', trendDir: 'up'
+    },
+    {
+      rank: 2, ticker: 'META', company: 'Meta Platforms Inc.',
+      score: 87, signal: 'BUY',
+      price: 512.70, mktcap: '1.31T',
+      checks: [1,1,1,1,1,0],
+      pe: 27.1, trend: '+18.7', trendDir: 'up'
+    },
+    {
+      rank: 3, ticker: 'MSFT', company: 'Microsoft Corporation',
+      score: 84, signal: 'BUY',
+      price: 414.80, mktcap: '3.08T',
+      checks: [1,1,1,1,0,1],
+      pe: 35.6, trend: '+11.2', trendDir: 'up'
+    },
+    {
+      rank: 4, ticker: 'AAPL', company: 'Apple Inc.',
+      score: 82, signal: 'BUY',
+      price: 189.30, mktcap: '2.92T',
+      checks: [1,1,1,0,1,1],
+      pe: 30.2, trend: '+9.5', trendDir: 'up'
+    },
+    {
+      rank: 5, ticker: 'AVGO', company: 'Broadcom Inc.',
+      score: 79, signal: 'BUY',
+      price: 1342.60, mktcap: '628B',
+      checks: [1,1,0,1,1,1],
+      pe: 31.8, trend: '+14.3', trendDir: 'up'
+    },
+    {
+      rank: 6, ticker: 'GOOGL', company: 'Alphabet Inc.',
+      score: 76, signal: 'BUY',
+      price: 174.20, mktcap: '2.18T',
+      checks: [1,1,1,0,1,0],
+      pe: 24.9, trend: '+7.8', trendDir: 'up'
+    },
+    {
+      rank: 7, ticker: 'AMZN', company: 'Amazon.com Inc.',
+      score: 74, signal: 'BUY',
+      price: 193.90, mktcap: '2.03T',
+      checks: [1,0,1,1,1,0],
+      pe: 42.5, trend: '+5.1', trendDir: 'up'
+    },
+    {
+      rank: 8, ticker: 'V', company: 'Visa Inc.',
+      score: 66, signal: 'HOLD',
+      price: 281.50, mktcap: '572B',
+      checks: [1,1,0,0,1,0],
+      pe: 29.3, trend: '+3.2', trendDir: 'up'
+    },
+    {
+      rank: 9, ticker: 'CRM', company: 'Salesforce Inc.',
+      score: 59, signal: 'HOLD',
+      price: 298.40, mktcap: '287B',
+      checks: [0,1,1,0,1,0],
+      pe: 45.2, trend: '−1.4', trendDir: 'down'
+    },
+    {
+      rank: 10, ticker: 'JPM', company: 'JPMorgan Chase & Co.',
+      score: 54, signal: 'HOLD',
+      price: 198.20, mktcap: '571B',
+      checks: [1,0,0,1,0,1],
+      pe: 12.1, trend: '+2.6', trendDir: 'up'
+    },
+    {
+      rank: 11, ticker: 'AMD', company: 'Advanced Micro Devices',
+      score: 42, signal: 'SELL',
+      price: 162.80, mktcap: '262B',
+      checks: [0,0,1,1,0,0],
+      pe: 94.7, trend: '−8.3', trendDir: 'down'
+    },
+    {
+      rank: 12, ticker: 'TSLA', company: 'Tesla Inc.',
+      score: 33, signal: 'SELL',
+      price: 174.50, mktcap: '556B',
+      checks: [0,0,0,1,0,1],
+      pe: 50.3, trend: '−14.6', trendDir: 'down'
+    }
+  ];
+
+  /* ────────────────────────────────────────
+     2. SCORE ARC SVG
+     270° sweep, from 135° to 405°
+  ──────────────────────────────────────── */
+  function arcPath(score) {
+    var size   = 36;
+    var cx     = size / 2;
+    var cy     = size / 2;
+    var r      = 13;
+    var stroke = 2.8;
+    var startDeg = 135;
+    var totalDeg = 270;
+    var pct   = Math.min(Math.max(score, 0), 100) / 100;
+    var sweepDeg = pct * totalDeg;
+
+    function toRad(d) { return d * Math.PI / 180; }
+    function point(deg) {
+      return [
+        cx + r * Math.cos(toRad(deg)),
+        cy + r * Math.sin(toRad(deg))
+      ];
+    }
+
+    var endDeg   = startDeg + totalDeg;
+    var p0 = point(startDeg);
+    var p1 = point(endDeg);
+    var trackPath = [
+      'M', p0[0].toFixed(3), p0[1].toFixed(3),
+      'A', r, r, 0, 1, 1, p1[0].toFixed(3), p1[1].toFixed(3)
+    ].join(' ');
+
+    var fillColor = score >= 70 ? '#10B981' : score >= 45 ? '#F59E0B' : '#EF4444';
+    var fillPath;
+    if (sweepDeg < 0.5) {
+      fillPath = null;
+    } else {
+      var fEnd = startDeg + sweepDeg;
+      var fp0 = point(startDeg);
+      var fp1 = point(fEnd);
+      var large = sweepDeg > 180 ? 1 : 0;
+      fillPath = [
+        'M', fp0[0].toFixed(3), fp0[1].toFixed(3),
+        'A', r, r, 0, large, 1, fp1[0].toFixed(3), fp1[1].toFixed(3)
+      ].join(' ');
+    }
+
+    var svgParts = [
+      '<svg class="arc-svg" width="', size, '" height="', size,
+      '" viewBox="0 0 ', size, ' ', size, '">',
+        '<path d="', trackPath, '" fill="none"',
+        ' stroke="rgba(255,255,255,0.06)" stroke-width="', stroke,
+        '" stroke-linecap="round"/>',
+    ];
+
+    if (fillPath) {
+      svgParts.push(
+        '<path d="', fillPath, '" fill="none"',
+        ' stroke="', fillColor, '" stroke-width="', stroke,
+        '" stroke-linecap="round"/>',
+        '<circle cx="', cx, '" cy="', cy, '" r="5" fill="none"/>',
+        '<text x="', cx, '" y="', (cy + 4), '" text-anchor="middle"',
+        ' font-family="IBM Plex Mono,monospace" font-size="9" font-weight="600"',
+        ' fill="', fillColor, '">', score, '</text>'
+      );
+    }
+
+    svgParts.push('</svg>');
+    return svgParts.join('');
+  }
+
+  /* ────────────────────────────────────────
+     3. SPARKLINE (tiny 8-pt line)
+  ──────────────────────────────────────── */
+  function makeSpark(trendDir) {
+    var w = 36, h = 16;
+    var up   = [2,14, 6,11, 10,9, 14,7, 18,10, 22,6, 26,4, 30,3, 34,2];
+    var down = [2,2, 6,4, 10,3, 14,6, 18,9, 22,8, 26,12, 30,13, 34,14];
+    var pts  = trendDir === 'up' ? up : down;
+    var col  = trendDir === 'up' ? '#10B981' : '#EF4444';
+    var path = 'M ' + pts[0] + ' ' + pts[1];
+    for (var i = 2; i < pts.length; i += 2) {
+      path += ' L ' + pts[i] + ' ' + pts[i+1];
+    }
+    return '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"><path d="' + path + '" fill="none" stroke="' + col + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/></svg>';
+  }
+
+  /* ────────────────────────────────────────
+     4. RENDER ROWS
+  ──────────────────────────────────────── */
+  function checksHTML(arr) {
+    var LABELS = ['Revenue Growth','Margin Expansion','Earnings Beat','Inst. Flow','RSI Zone','Trend Strength'];
+    var html = '<div class="checks">';
+    for (var i = 0; i < arr.length; i++) {
+      var cls = arr[i] === 1 ? 'pass' : 'fail';
+      html += '<div class="check-sq ' + cls + '" data-tip="' + LABELS[i] + ': ' + (arr[i] ? 'PASS' : 'FAIL') + '"></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderRows(data) {
+    var tbody = document.getElementById('tableBody');
+    var html = '';
+    for (var i = 0; i < data.length; i++) {
+      var s = data[i];
+      var sigClass = s.signal === 'BUY' ? 'badge-buy' : s.signal === 'HOLD' ? 'badge-hold' : 'badge-sell';
+      var trendClass = s.trendDir === 'up' ? 'up' : 'down';
+
+      html += '<tr data-signal="' + s.signal + '">';
+      html += '<td class="td-rank">' + String(s.rank).padStart(2,'0') + '</td>';
+      html += '<td class="td-ticker">' + s.ticker + '</td>';
+      html += '<td class="td-company">' + s.company + '</td>';
+      html += '<td class="td-score"><div class="score-wrap">' + arcPath(s.score) + '</div></td>';
+      html += '<td><span class="badge ' + sigClass + '">' + s.signal + '</span></td>';
+      html += '<td class="td-price">$' + s.price.toFixed(2) + '</td>';
+      html += '<td class="td-mktcap">' + s.mktcap + '</td>';
+      html += '<td>' + checksHTML(s.checks) + '</td>';
+      html += '<td class="td-pe">' + s.pe.toFixed(1) + '</td>';
+      html += '<td class="td-trend ' + trendClass + '">' + makeSpark(s.trendDir) + s.trend + '%</td>';
+      html += '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+
+  renderRows(stocks);
+
+  /* ────────────────────────────────────────
+     5. FILTER CHIPS
+  ──────────────────────────────────────── */
+  window.filterTable = function(signal, el) {
+    document.querySelectorAll('.chip').forEach(function(c){ c.classList.remove('active'); });
+    el.classList.add('active');
+
+    var rows = document.querySelectorAll('#tableBody tr');
+    rows.forEach(function(r) {
+      if (signal === 'all' || r.dataset.signal === signal) {
+        r.style.display = '';
+      } else {
+        r.style.display = 'none';
+      }
+    });
+  };
+
+  /* ────────────────────────────────────────
+     6. SORTABLE COLUMNS
+  ──────────────────────────────────────── */
+  var sortState = { col: 'rank', dir: 1 };
+
+  document.querySelectorAll('th[data-col]').forEach(function(th) {
+    th.addEventListener('click', function() {
+      var col = th.getAttribute('data-col');
+      if (sortState.col === col) {
+        sortState.dir *= -1;
+      } else {
+        sortState.col = col;
+        sortState.dir = 1;
+      }
+
+      document.querySelectorAll('th').forEach(function(t){ t.classList.remove('sorted'); });
+      th.classList.add('sorted');
+      th.querySelector('.sort-icon').textContent = sortState.dir === 1 ? '↑' : '↓';
+
+      var sorted = stocks.slice().sort(function(a, b) {
+        var av, bv;
+        if (col === 'ticker')  { av = a.ticker;  bv = b.ticker; return sortState.dir * av.localeCompare(bv); }
+        if (col === 'company') { av = a.company; bv = b.company; return sortState.dir * av.localeCompare(bv); }
+        if (col === 'signal')  { av = a.signal;  bv = b.signal;  return sortState.dir * av.localeCompare(bv); }
+        if (col === 'score')   { av = a.score;   bv = b.score; }
+        if (col === 'rank')    { av = a.rank;    bv = b.rank; }
+        if (col === 'price')   { av = a.price;   bv = b.price; }
+        if (col === 'pe')      { av = a.pe;      bv = b.pe; }
+        if (col === 'trend')   { av = parseFloat(a.trend); bv = parseFloat(b.trend); }
+        if (col === 'mktcap' || col === 'checks') { return 0; }
+        return sortState.dir * ((av > bv ? 1 : av < bv ? -1 : 0));
+      });
+
+      renderRows(sorted);
+    });
+  });
+
+  /* ────────────────────────────────────────
+     7. SEARCH FILTER
+  ──────────────────────────────────────── */
+  document.getElementById('searchInput').addEventListener('input', function(e) {
+    var q = e.target.value.trim().toLowerCase();
+    var rows = document.querySelectorAll('#tableBody tr');
+    rows.forEach(function(r) {
+      var ticker  = r.children[1].textContent.toLowerCase();
+      var company = r.children[2].textContent.toLowerCase();
+      r.style.display = (!q || ticker.includes(q) || company.includes(q)) ? '' : 'none';
+    });
+  });
+
+  /* ── ⌘K focuses search ── */
+  document.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      document.getElementById('searchInput').focus();
+    }
+  });
+
+  /* ────────────────────────────────────────
+     8. ACCORDION
+  ──────────────────────────────────────── */
+  window.toggleAccordion = function() {
+    document.getElementById('howItWorks').classList.toggle('open');
+  };
+
+  /* ────────────────────────────────────────
+     9. ANIMATED COUNTERS
+  ──────────────────────────────────────── */
+  function animateCount(id, target, duration) {
+    var el = document.getElementById(id);
+    var start = 0;
+    var startTime = null;
+    function step(timestamp) {
+      if (!startTime) startTime = timestamp;
+      var progress = Math.min((timestamp - startTime) / duration, 1);
+      var ease = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(ease * target);
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  /* Slight delay so animation is visible on load */
+  setTimeout(function() {
+    animateCount('cnt-buy',   47, 1000);
+    animateCount('cnt-hold',  23, 1000);
+    animateCount('cnt-sell',  12, 1000);
+    animateCount('cnt-total', 82, 1000);
+  }, 300);
+
+  /* ────────────────────────────────────────
+     10. LIVE COUNTER (ticks slowly)
+  ──────────────────────────────────────── */
+  setInterval(function() {
+    var pill = document.querySelector('.live-pill');
+    if (!pill) return;
+    /* tiny random flicker — purely cosmetic */
+    var buyEl  = pill.querySelector('.buy');
+    var holdEl = pill.querySelector('.hold');
+    if (!buyEl || !holdEl) return;
+    /* flash opacity */
+    buyEl.style.opacity  = '0.6';
+    holdEl.style.opacity = '0.6';
+    setTimeout(function() {
+      buyEl.style.opacity  = '1';
+      holdEl.style.opacity = '1';
+    }, 300);
+  }, 8000);
+
+})();
+</script>
+
+</body>
+</html>

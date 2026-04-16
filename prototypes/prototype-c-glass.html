@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPAN — Obsidian Glass</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-top: #0A0B14;
+      --bg-bottom: #060609;
+      --glass-bg: rgba(255,255,255,0.05);
+      --glass-border: rgba(255,255,255,0.10);
+      --glass-border-hover: rgba(255,255,255,0.18);
+      --text-primary: #F0F0F0;
+      --text-secondary: rgba(240,240,240,0.55);
+      --text-muted: rgba(240,240,240,0.30);
+      --emerald: #10B981;
+      --emerald-glow: rgba(16,185,129,0.30);
+      --amber: #F59E0B;
+      --amber-glow: rgba(245,158,11,0.30);
+      --red: #EF4444;
+      --red-glow: rgba(239,68,68,0.30);
+      --violet: #6366F1;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', sans-serif;
+      --head: 'DM Sans', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      min-height: 100vh;
+      color: var(--text-primary);
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* ── Ambient blobs ── */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(90px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .blob-emerald {
+      width: 560px; height: 560px;
+      top: -120px; right: -160px;
+      background: radial-gradient(circle, rgba(16,185,129,0.09) 0%, transparent 70%);
+    }
+    .blob-violet {
+      width: 640px; height: 640px;
+      bottom: -180px; left: -200px;
+      background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+    }
+    .blob-mid {
+      width: 300px; height: 300px;
+      top: 45%; left: 42%;
+      background: radial-gradient(circle, rgba(16,185,129,0.04) 0%, transparent 70%);
+    }
+
+    /* ── Layout ── */
+    .page-wrapper { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Navbar ── */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      background: rgba(10,11,20,0.75);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 0 28px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .nav-logo {
+      font-family: var(--head);
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--emerald) 0%, var(--violet) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .nav-spacer { flex: 1; }
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-family: var(--mono);
+      white-space: nowrap;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 6px var(--emerald-glow);
+      animation: livePulse 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes livePulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.45); opacity: 0.55; }
+    }
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      max-width: 300px;
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 8px 14px 8px 36px;
+      color: var(--text-primary);
+      font-family: var(--sans);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.25s, box-shadow 0.25s;
+      backdrop-filter: blur(8px);
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-input:focus {
+      border-color: rgba(16,185,129,0.45);
+      box-shadow: 0 0 0 3px rgba(16,185,129,0.08), 0 0 16px rgba(16,185,129,0.10);
+    }
+    .nav-btn {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 9px;
+      padding: 7px 14px;
+      color: var(--text-secondary);
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s;
+      white-space: nowrap;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.09); border-color: var(--glass-border-hover); color: var(--text-primary); }
+    .nav-btn:active { transform: scale(0.97); }
+
+    /* ── Announcement bar ── */
+    .announce-bar {
+      background: rgba(16,185,129,0.06);
+      border-bottom: 1px solid rgba(16,185,129,0.12);
+      padding: 9px 28px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .announce-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--emerald); flex-shrink: 0; }
+    .announce-text { font-size: 12px; color: rgba(240,240,240,0.65); font-family: var(--mono); }
+    .announce-text strong { color: var(--emerald); font-weight: 600; }
+
+    /* ── Separator ── */
+    .sep { height: 1px; background: rgba(255,255,255,0.06); margin: 0; }
+
+    /* ── Main layout ── */
+    .main-content {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 20px;
+      padding: 24px 28px 48px;
+      flex: 1;
+    }
+    @media (max-width: 860px) {
+      .main-content { grid-template-columns: 1fr; }
+      .left-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    }
+    @media (max-width: 540px) {
+      .main-content { padding: 16px 14px 40px; }
+      .left-col { grid-template-columns: 1fr; }
+      .navbar { padding: 0 14px; gap: 12px; }
+      .announce-bar { padding: 8px 14px; }
+      .search-wrap { max-width: 160px; }
+    }
+
+    /* ── Glass card base ── */
+    .glass {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+    }
+
+    /* ── Left col: Watchlist ── */
+    .left-col { display: flex; flex-direction: column; gap: 10px; align-self: start; }
+    .col-label {
+      font-family: var(--head);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 2px 6px;
+    }
+
+    .watch-card {
+      padding: 14px 14px 12px;
+      position: relative;
+      transition: transform 0.25s cubic-bezier(.22,.68,0,1.2), box-shadow 0.25s, border-color 0.25s;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .watch-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+    }
+    .watch-card:hover { transform: translateY(-2px); border-color: var(--glass-border-hover); }
+    .watch-card:hover::before { opacity: 1; }
+    .watch-card.buy:hover { box-shadow: 0 0 28px rgba(16,185,129,0.12); }
+    .watch-card.hold:hover { box-shadow: 0 0 28px rgba(245,158,11,0.12); }
+    .watch-card.sell:hover { box-shadow: 0 0 28px rgba(239,68,68,0.12); }
+
+    .watch-card-inner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .watch-ring-wrap { flex-shrink: 0; }
+    .watch-info { flex: 1; min-width: 0; }
+    .watch-ticker {
+      font-family: var(--head);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    .watch-name {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .watch-price {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-primary);
+      font-weight: 500;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .watch-chg {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-align: right;
+      margin-top: 2px;
+    }
+    .watch-chg.up { color: var(--emerald); }
+    .watch-chg.down { color: var(--red); }
+    .watch-rank {
+      position: absolute;
+      top: 7px; left: 9px;
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--text-muted);
+    }
+
+    /* ── Score ring SVG ── */
+    .score-ring-svg {
+      transform: rotate(-225deg);
+      display: block;
+    }
+    .ring-track { fill: none; stroke: rgba(255,255,255,0.10); }
+    .ring-fill { fill: none; stroke-linecap: round; }
+
+    /* ── Right col ── */
+    .right-col { display: flex; flex-direction: column; gap: 18px; }
+
+    /* ── Stats row ── */
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .stat-card {
+      padding: 18px 20px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: default;
+    }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card.buy { box-shadow: 0 0 26px rgba(16,185,129,0.13); border-color: rgba(16,185,129,0.22); }
+    .stat-card.hold { box-shadow: 0 0 26px rgba(245,158,11,0.13); border-color: rgba(245,158,11,0.22); }
+    .stat-card.sell { box-shadow: 0 0 26px rgba(239,68,68,0.13); border-color: rgba(239,68,68,0.22); }
+    .stat-label {
+      font-size: 10px;
+      letter-spacing: 1.1px;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .stat-card.buy .stat-label { color: var(--emerald); }
+    .stat-card.hold .stat-label { color: var(--amber); }
+    .stat-card.sell .stat-label { color: var(--red); }
+    .stat-number {
+      font-family: var(--head);
+      font-size: 38px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .stat-card.buy .stat-number { color: var(--emerald); text-shadow: 0 0 24px rgba(16,185,129,0.35); }
+    .stat-card.hold .stat-number { color: var(--amber); text-shadow: 0 0 24px rgba(245,158,11,0.35); }
+    .stat-card.sell .stat-number { color: var(--red); text-shadow: 0 0 24px rgba(239,68,68,0.35); }
+    .stat-sub { font-size: 10px; color: var(--text-muted); margin-top: 5px; font-family: var(--mono); }
+
+    /* ── Filter pills ── */
+    .filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .filter-pill {
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: var(--sans);
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s, box-shadow 0.2s;
+      user-select: none;
+    }
+    .filter-pill:hover { background: rgba(255,255,255,0.09); color: var(--text-primary); border-color: var(--glass-border-hover); }
+    .filter-pill:active { transform: scale(0.96); }
+    .filter-pill.active {
+      background: rgba(16,185,129,0.12);
+      border-color: rgba(16,185,129,0.35);
+      color: var(--emerald);
+      box-shadow: 0 0 12px rgba(16,185,129,0.15);
+    }
+    .filter-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: rgba(16,185,129,0.18);
+      color: var(--emerald);
+      font-size: 9px;
+      font-family: var(--mono);
+      font-weight: 600;
+      margin-left: 5px;
+    }
+
+    /* ── Stock list header ── */
+    .list-header {
+      display: grid;
+      grid-template-columns: 48px 1fr 88px 80px 70px 52px 60px;
+      gap: 10px;
+      padding: 0 16px;
+      align-items: center;
+    }
+    .lh-cell {
+      font-size: 10px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+    .lh-right { text-align: right; }
+
+    /* ── Stock card rows ── */
+    .stock-list { display: flex; flex-direction: column; gap: 7px; }
+    .stock-card {
+      display: grid;
+      grid-template-columns: 48px 1fr 88px 80px 70px 52px 60px;
+      gap: 10px;
+      padding: 12px 16px;
+      align-items: center;
+      position: relative;
+      transition: transform 0.22s cubic-bezier(.22,.68,0,1.2), box-shadow 0.22s, border-color 0.22s;
+      cursor: pointer;
+    }
+    .stock-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(16,185,129,0.12);
+      border-color: rgba(16,185,129,0.18);
+    }
+    .stock-card:active { transform: scale(0.985) translateY(0); }
+    .stock-rank {
+      position: absolute;
+      top: 6px; left: 8px;
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--text-muted);
+    }
+    .sc-ring { display: flex; justify-content: center; align-items: center; }
+    .sc-ticker-wrap { display: flex; flex-direction: column; min-width: 0; }
+    .sc-ticker {
+      font-family: var(--head);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .sc-company {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+
+    /* ── Signal badge ── */
+    .signal-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--mono);
+      letter-spacing: 0.5px;
+      width: fit-content;
+    }
+    .signal-badge.buy {
+      background: rgba(16,185,129,0.14);
+      color: var(--emerald);
+      border: 1px solid rgba(16,185,129,0.35);
+      box-shadow: 0 0 10px rgba(16,185,129,0.20);
+    }
+    .signal-badge.hold {
+      background: rgba(245,158,11,0.12);
+      color: var(--amber);
+      border: 1px solid rgba(245,158,11,0.30);
+      box-shadow: 0 0 10px rgba(245,158,11,0.16);
+    }
+    .signal-badge.sell {
+      background: rgba(239,68,68,0.12);
+      color: var(--red);
+      border: 1px solid rgba(239,68,68,0.30);
+      box-shadow: 0 0 10px rgba(239,68,68,0.16);
+    }
+
+    /* ── Price cell ── */
+    .sc-price {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-primary);
+      font-weight: 500;
+      text-align: right;
+    }
+    .sc-change {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-align: right;
+      margin-top: 2px;
+    }
+    .sc-change.up { color: var(--emerald); }
+    .sc-change.down { color: var(--red); }
+
+    /* ── Check squares ── */
+    .checks-row { display: flex; gap: 3px; flex-wrap: wrap; align-items: center; justify-content: center; }
+    .chk {
+      width: 8px; height: 8px;
+      border-radius: 2.5px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: transparent;
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .chk.pass-buy { background: rgba(16,185,129,0.45); border-color: rgba(16,185,129,0.6); }
+    .chk.pass-hold { background: rgba(245,158,11,0.45); border-color: rgba(245,158,11,0.6); }
+    .chk.pass-sell { background: rgba(239,68,68,0.45); border-color: rgba(239,68,68,0.6); }
+
+    /* ── PE ── */
+    .sc-pe {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: right;
+    }
+
+    /* ── Trend sparkline ── */
+    .trend-cell { display: flex; justify-content: flex-end; }
+    .sparkline { display: block; }
+
+    /* ── Accordion ── */
+    .accordion-wrap { margin-top: 8px; }
+    .accordion-card { border-radius: 14px; overflow: hidden; }
+    .accordion-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      font-family: var(--head);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.2s;
+    }
+    .accordion-header:hover { background: rgba(255,255,255,0.03); }
+    .accordion-arrow {
+      width: 18px; height: 18px;
+      color: var(--text-muted);
+      transition: transform 0.3s cubic-bezier(.22,.68,0,1.2);
+      flex-shrink: 0;
+    }
+    .accordion-arrow.open { transform: rotate(180deg); }
+    .accordion-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s cubic-bezier(.22,.68,0,1.2);
+    }
+    .accordion-body.open { max-height: 600px; }
+    .accordion-inner {
+      padding: 4px 20px 20px;
+      border-top: 1px solid var(--glass-border);
+    }
+    .steps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; }
+    .step-item {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .step-num {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--emerald);
+      line-height: 1;
+    }
+    .step-title {
+      font-family: var(--head);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-top: 6px;
+    }
+    .step-desc { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+
+    /* ── Responsive table ── */
+    @media (max-width: 780px) {
+      .list-header { display: none; }
+      .stock-card {
+        grid-template-columns: 40px 1fr 72px;
+        grid-template-rows: auto auto;
+        gap: 6px 8px;
+        padding: 12px 12px;
+      }
+      .sc-ring { grid-row: 1 / 3; }
+      .sc-price-wrap { grid-column: 3; grid-row: 1; text-align: right; }
+      .checks-row { display: none; }
+      .sc-pe { display: none; }
+      .trend-cell { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="blob blob-emerald"></div>
+<div class="blob blob-violet"></div>
+<div class="blob blob-mid"></div>
+
+<div class="page-wrapper">
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <span class="nav-logo">SPAN</span>
+    <div class="live-indicator">
+      <span class="live-dot"></span>
+      <span>LIVE · 09:47 ET</span>
+    </div>
+    <div class="nav-spacer"></div>
+    <div class="search-wrap">
+      <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input class="search-input" type="text" placeholder="Search tickers…" />
+    </div>
+    <button class="nav-btn">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="display:inline;vertical-align:-1px;margin-right:5px">
+        <path d="M2 12a5 5 0 0 0 5 5 8 8 0 0 1 5 2 8 8 0 0 1 5-2 5 5 0 0 0 5-5V7h-5a8 8 0 0 0-5 2 8 8 0 0 0-5-2H2z"/>
+      </svg>
+      Watchlist
+    </button>
+  </nav>
+
+  <!-- ANNOUNCEMENT BAR -->
+  <div class="announce-bar">
+    <span class="announce-dot"></span>
+    <span class="announce-text"><strong>47 stocks showing BUY</strong> · algorithmic screening across 82 tickers · updated 4 min ago</span>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-content">
+
+    <!-- LEFT: Watchlist -->
+    <aside class="left-col">
+      <div class="col-label">Watchlist</div>
+
+      <!-- AAPL -->
+      <div class="glass watch-card buy">
+        <div class="watch-rank">#1</div>
+        <div class="watch-card-inner">
+          <div class="watch-ring-wrap" id="wr-aapl"></div>
+          <div class="watch-info">
+            <div class="watch-ticker">AAPL</div>
+            <div class="watch-name">Apple Inc.</div>
+          </div>
+          <div>
+            <div class="watch-price">$191.45</div>
+            <div class="watch-chg up">+1.24%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NVDA -->
+      <div class="glass watch-card buy">
+        <div class="watch-rank">#2</div>
+        <div class="watch-card-inner">
+          <div class="watch-ring-wrap" id="wr-nvda"></div>
+          <div class="watch-info">
+            <div class="watch-ticker">NVDA</div>
+            <div class="watch-name">NVIDIA Corp.</div>
+          </div>
+          <div>
+            <div class="watch-price">$875.20</div>
+            <div class="watch-chg up">+2.87%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TSLA -->
+      <div class="glass watch-card hold">
+        <div class="watch-rank">#3</div>
+        <div class="watch-card-inner">
+          <div class="watch-ring-wrap" id="wr-tsla"></div>
+          <div class="watch-info">
+            <div class="watch-ticker">TSLA</div>
+            <div class="watch-name">Tesla Inc.</div>
+          </div>
+          <div>
+            <div class="watch-price">$162.30</div>
+            <div class="watch-chg down">-0.93%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- META -->
+      <div class="glass watch-card buy">
+        <div class="watch-rank">#4</div>
+        <div class="watch-card-inner">
+          <div class="watch-ring-wrap" id="wr-meta"></div>
+          <div class="watch-info">
+            <div class="watch-ticker">META</div>
+            <div class="watch-name">Meta Platforms</div>
+          </div>
+          <div>
+            <div class="watch-price">$497.80</div>
+            <div class="watch-chg up">+0.56%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- JPM -->
+      <div class="glass watch-card hold">
+        <div class="watch-rank">#5</div>
+        <div class="watch-card-inner">
+          <div class="watch-ring-wrap" id="wr-jpm"></div>
+          <div class="watch-info">
+            <div class="watch-ticker">JPM</div>
+            <div class="watch-name">JPMorgan Chase</div>
+          </div>
+          <div>
+            <div class="watch-price">$196.10</div>
+            <div class="watch-chg down">-0.31%</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT: Main panel -->
+    <div class="right-col">
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="glass stat-card buy">
+          <div class="stat-label">BUY</div>
+          <div class="stat-number">47</div>
+          <div class="stat-sub">of 82 tickers</div>
+        </div>
+        <div class="glass stat-card hold">
+          <div class="stat-label">HOLD</div>
+          <div class="stat-number">24</div>
+          <div class="stat-sub">neutral zone</div>
+        </div>
+        <div class="glass stat-card sell">
+          <div class="stat-label">SELL</div>
+          <div class="stat-number">11</div>
+          <div class="stat-sub">caution flags</div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-row">
+        <button class="filter-pill active" data-filter="all">All <span class="filter-count">82</span></button>
+        <button class="filter-pill" data-filter="buy">BUY</button>
+        <button class="filter-pill" data-filter="hold">HOLD</button>
+        <button class="filter-pill" data-filter="sell">SELL</button>
+        <button class="filter-pill" data-filter="tech">Tech</button>
+        <button class="filter-pill" data-filter="finance">Finance</button>
+        <button class="filter-pill" data-filter="consumer">Consumer</button>
+      </div>
+
+      <!-- List header -->
+      <div class="list-header">
+        <div class="lh-cell">SCORE</div>
+        <div class="lh-cell">TICKER</div>
+        <div class="lh-cell">SIGNAL</div>
+        <div class="lh-cell lh-right">PRICE</div>
+        <div class="lh-cell" style="text-align:center">CHECKS</div>
+        <div class="lh-cell lh-right">P/E</div>
+        <div class="lh-cell lh-right">TREND</div>
+      </div>
+
+      <!-- Stock list -->
+      <div class="stock-list" id="stockList"></div>
+
+      <!-- Accordion -->
+      <div class="accordion-wrap">
+        <div class="glass accordion-card">
+          <button class="accordion-header" id="accordionBtn" onclick="toggleAccordion()">
+            <span>How SPAN scoring works</span>
+            <svg class="accordion-arrow" id="accordionArrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div class="accordion-body" id="accordionBody">
+            <div class="accordion-inner">
+              <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">
+                SPAN uses a 6-factor algorithmic model to score every ticker from 0–25. Scores above 18 = BUY, 12–18 = HOLD, below 12 = SELL.
+                The six checks are evaluated daily using fundamentals and price action data.
+              </p>
+              <div class="steps-grid">
+                <div class="step-item">
+                  <div class="step-num">01</div>
+                  <div class="step-title">Revenue Growth</div>
+                  <div class="step-desc">YoY and QoQ revenue acceleration above sector median</div>
+                </div>
+                <div class="step-item">
+                  <div class="step-num">02</div>
+                  <div class="step-title">Margin Expansion</div>
+                  <div class="step-desc">Gross and operating margin trend vs trailing 4 quarters</div>
+                </div>
+                <div class="step-item">
+                  <div class="step-num">03</div>
+                  <div class="step-title">Valuation</div>
+                  <div class="step-desc">P/E, P/S, EV/EBITDA relative to peers and 5-year range</div>
+                </div>
+                <div class="step-item">
+                  <div class="step-num">04</div>
+                  <div class="step-title">Momentum</div>
+                  <div class="step-desc">Price vs 50/200 MA, RSI, and breakout pattern detection</div>
+                </div>
+                <div class="step-item">
+                  <div class="step-num">05</div>
+                  <div class="step-title">Analyst Sentiment</div>
+                  <div class="step-desc">Upgrade/downgrade velocity and consensus target distance</div>
+                </div>
+                <div class="step-item">
+                  <div class="step-num">06</div>
+                  <div class="step-title">Earnings Quality</div>
+                  <div class="step-desc">Beat/miss streak, EPS revision trend, guidance reliability</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /right-col -->
+  </div><!-- /main-content -->
+</div><!-- /page-wrapper -->
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+const stocks = [
+  { rank:1,  ticker:'AAPL',  name:'Apple Inc.',          signal:'buy',  score:22, price:'191.45', chg:'+1.24%', up:true,  checks:[1,1,1,1,1,0], pe:'29.4', sector:'tech',     sparkData:[0,2,-1,3,1,4,3,5,4,6] },
+  { rank:2,  ticker:'MSFT',  name:'Microsoft Corp.',     signal:'buy',  score:21, price:'415.30', chg:'+0.88%', up:true,  checks:[1,1,1,1,0,1], pe:'32.1', sector:'tech',     sparkData:[1,3,2,4,3,5,4,6,5,7] },
+  { rank:3,  ticker:'NVDA',  name:'NVIDIA Corp.',        signal:'buy',  score:24, price:'875.20', chg:'+2.87%', up:true,  checks:[1,1,1,1,1,1], pe:'68.5', sector:'tech',     sparkData:[2,5,3,7,5,8,6,10,8,12] },
+  { rank:4,  ticker:'META',  name:'Meta Platforms',      signal:'buy',  score:20, price:'497.80', chg:'+0.56%', up:true,  checks:[1,1,1,0,1,1], pe:'24.7', sector:'tech',     sparkData:[1,2,2,3,2,4,3,5,4,5] },
+  { rank:5,  ticker:'GOOGL', name:'Alphabet Inc.',       signal:'buy',  score:19, price:'173.50', chg:'+1.10%', up:true,  checks:[1,1,0,1,1,1], pe:'21.3', sector:'tech',     sparkData:[0,1,1,2,1,3,2,4,3,4] },
+  { rank:6,  ticker:'AMZN',  name:'Amazon.com Inc.',     signal:'buy',  score:18, price:'182.15', chg:'+0.74%', up:true,  checks:[1,1,1,1,0,0], pe:'41.2', sector:'consumer', sparkData:[1,1,2,2,3,3,3,4,4,5] },
+  { rank:7,  ticker:'AVGO',  name:'Broadcom Inc.',       signal:'buy',  score:20, price:'1318.60',chg:'+1.55%', up:true,  checks:[1,1,1,0,1,1], pe:'35.8', sector:'tech',     sparkData:[2,3,3,4,4,5,5,6,6,7] },
+  { rank:8,  ticker:'TSLA',  name:'Tesla Inc.',          signal:'hold', score:14, price:'162.30', chg:'-0.93%', up:false, checks:[1,0,0,1,1,0], pe:'48.9', sector:'consumer', sparkData:[5,4,5,3,4,3,3,2,3,2] },
+  { rank:9,  ticker:'V',     name:'Visa Inc.',           signal:'hold', score:16, price:'278.90', chg:'+0.33%', up:true,  checks:[1,1,0,1,0,0], pe:'27.6', sector:'finance',  sparkData:[2,2,3,2,3,3,2,3,3,3] },
+  { rank:10, ticker:'JPM',   name:'JPMorgan Chase',      signal:'hold', score:15, price:'196.10', chg:'-0.31%', up:false, checks:[1,0,1,0,1,0], pe:'11.4', sector:'finance',  sparkData:[3,3,2,3,2,3,2,2,3,2] },
+  { rank:11, ticker:'AMD',   name:'Advanced Micro Dev.', signal:'hold', score:13, price:'148.75', chg:'-1.42%', up:false, checks:[1,0,0,1,0,1], pe:'175.0',sector:'tech',     sparkData:[6,5,5,4,4,3,4,3,3,2] },
+  { rank:12, ticker:'CRM',   name:'Salesforce Inc.',     signal:'sell', score:9,  price:'285.40', chg:'-2.18%', up:false, checks:[0,0,1,0,0,1], pe:'43.2', sector:'tech',     sparkData:[5,4,4,3,3,2,2,1,1,0] },
+];
+
+// ── Score ring SVG ────────────────────────────────────────────────────────────
+function makeRing(score, signal, size = 40) {
+  const max = 25;
+  const circumference = 2 * Math.PI * 14; // r=14
+  // 270° arc = 75% of full circle
+  const arcLen = circumference * 0.75;
+  const fillLen = (score / max) * arcLen;
+  const gapLen = circumference - fillLen;
+
+  const colorMap = { buy: '#10B981', hold: '#F59E0B', sell: '#EF4444' };
+  const glowMap  = { buy: 'rgba(16,185,129,0.5)', hold: 'rgba(245,158,11,0.5)', sell: 'rgba(239,68,68,0.5)' };
+  const color = colorMap[signal];
+  const glow  = glowMap[signal];
+
+  const gradId = `rg-${Math.random().toString(36).slice(2,7)}`;
+
+  return `
+    <svg class="score-ring-svg" width="${size}" height="${size}" viewBox="0 0 36 36"
+         style="filter: drop-shadow(0 0 5px ${glow})">
+      <defs>
+        <linearGradient id="${gradId}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.12)"/>
+          <stop offset="100%" stop-color="${color}"/>
+        </linearGradient>
+      </defs>
+      <!-- Track -->
+      <circle class="ring-track" cx="18" cy="18" r="14"
+              stroke-width="2.4"
+              stroke-dasharray="${arcLen} ${circumference - arcLen}"
+              stroke-dashoffset="0"/>
+      <!-- Fill -->
+      <circle class="ring-fill" cx="18" cy="18" r="14"
+              stroke="url(#${gradId})"
+              stroke-width="2.4"
+              stroke-dasharray="${fillLen} ${circumference - fillLen}"
+              stroke-dashoffset="0"/>
+      <!-- Score number -->
+      <text x="18" y="19.5"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-family="'JetBrains Mono', monospace"
+            font-size="7.5"
+            font-weight="600"
+            fill="${color}">${score}</text>
+    </svg>`;
+}
+
+// ── Sparkline SVG ─────────────────────────────────────────────────────────────
+function makeSparkline(data, signal, w = 56, h = 26) {
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const colorMap = { buy: '#10B981', hold: '#F59E0B', sell: '#EF4444' };
+  const c = colorMap[signal];
+  return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  </svg>`;
+}
+
+// ── Check squares ─────────────────────────────────────────────────────────────
+function makeChecks(checks, signal) {
+  return `<div class="checks-row">${checks.map(c =>
+    `<div class="chk${c ? ' pass-' + signal : ''}"></div>`
+  ).join('')}</div>`;
+}
+
+// ── Render stock list ─────────────────────────────────────────────────────────
+function renderStocks(data) {
+  const list = document.getElementById('stockList');
+  list.innerHTML = data.map(s => `
+    <div class="glass stock-card">
+      <span class="stock-rank">#${s.rank}</span>
+      <div class="sc-ring">${makeRing(s.score, s.signal, 40)}</div>
+      <div class="sc-ticker-wrap">
+        <span class="sc-ticker">${s.ticker}</span>
+        <span class="sc-company">${s.name}</span>
+      </div>
+      <div><span class="signal-badge ${s.signal}">${s.signal.toUpperCase()}</span></div>
+      <div class="sc-price-wrap">
+        <div class="sc-price">$${s.price}</div>
+        <div class="sc-change ${s.up ? 'up' : 'down'}">${s.chg}</div>
+      </div>
+      ${makeChecks(s.checks, s.signal)}
+      <div class="sc-pe">${s.pe}</div>
+      <div class="trend-cell">${makeSparkline(s.sparkData, s.signal)}</div>
+    </div>
+  `).join('');
+}
+
+// ── Render watchlist rings ────────────────────────────────────────────────────
+function renderWatchRings() {
+  const map = {
+    'wr-aapl': { score: 22, signal: 'buy' },
+    'wr-nvda': { score: 24, signal: 'buy' },
+    'wr-tsla': { score: 14, signal: 'hold' },
+    'wr-meta': { score: 20, signal: 'buy' },
+    'wr-jpm':  { score: 15, signal: 'hold' },
+  };
+  Object.entries(map).forEach(([id, d]) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = makeRing(d.score, d.signal, 38);
+  });
+}
+
+// ── Filter pills ──────────────────────────────────────────────────────────────
+let activeFilter = 'all';
+document.querySelectorAll('.filter-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeFilter = btn.dataset.filter;
+    document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    let filtered = stocks;
+    if (activeFilter === 'buy')      filtered = stocks.filter(s => s.signal === 'buy');
+    else if (activeFilter === 'hold') filtered = stocks.filter(s => s.signal === 'hold');
+    else if (activeFilter === 'sell') filtered = stocks.filter(s => s.signal === 'sell');
+    else if (activeFilter === 'tech')     filtered = stocks.filter(s => s.sector === 'tech');
+    else if (activeFilter === 'finance')  filtered = stocks.filter(s => s.sector === 'finance');
+    else if (activeFilter === 'consumer') filtered = stocks.filter(s => s.sector === 'consumer');
+    renderStocks(filtered);
+  });
+});
+
+// ── Accordion ─────────────────────────────────────────────────────────────────
+function toggleAccordion() {
+  const body  = document.getElementById('accordionBody');
+  const arrow = document.getElementById('accordionArrow');
+  const open  = body.classList.toggle('open');
+  arrow.classList.toggle('open', open);
+}
+
+// ── Search filter ─────────────────────────────────────────────────────────────
+document.querySelector('.search-input').addEventListener('input', function() {
+  const q = this.value.trim().toUpperCase();
+  const filtered = q ? stocks.filter(s =>
+    s.ticker.includes(q) || s.name.toUpperCase().includes(q)
+  ) : stocks;
+  renderStocks(filtered);
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderStocks(stocks);
+renderWatchRings();
+</script>
+</body>
+</html>
