@@ -1,24 +1,23 @@
 import type { Metadata, Viewport } from 'next'
-import { IBM_Plex_Sans, IBM_Plex_Mono, JetBrains_Mono } from 'next/font/google'
+import { Playfair_Display, Inter, JetBrains_Mono } from 'next/font/google'
+import BottomTabBar from './components/BottomTabBar'
 import './globals.css'
 
-// IBM Plex Sans — authoritative, financial, trustworthy
-const fontBody = IBM_Plex_Sans({
-  weight: ['300', '400', '500', '600', '700'],
+const fontSerif = Playfair_Display({
+  weight: ['400', '600', '700', '900'],
+  style: ['normal', 'italic'],
   subsets: ['latin'],
-  variable: '--font-body',
+  variable: '--font-serif',
   display: 'swap',
 })
 
-// IBM Plex Mono — precise tabular figures for data labels
-const fontDisplay = IBM_Plex_Sans({
+const fontSans = Inter({
   weight: ['300', '400', '500', '600', '700'],
   subsets: ['latin'],
-  variable: '--font-display',
+  variable: '--font-sans',
   display: 'swap',
 })
 
-// JetBrains Mono — best-in-class monospace for financial data
 const fontMono = JetBrains_Mono({
   weight: ['400', '500', '600', '700'],
   subsets: ['latin'],
@@ -41,15 +40,18 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#020508',
+  themeColor: '#F7F6F2',
   width: 'device-width',
   initialScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fontBody.variable} ${fontDisplay.variable} ${fontMono.variable}`}>
-      <body className="antialiased relative">{children}</body>
+    <html lang="en" className={`${fontSerif.variable} ${fontSans.variable} ${fontMono.variable}`}>
+      <body className="antialiased relative pb-[52px] sm:pb-0">
+        {children}
+        <BottomTabBar />
+      </body>
     </html>
   )
 }

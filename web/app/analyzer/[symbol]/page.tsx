@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import { api } from '@/lib/api'
 import Navbar from '../../components/Navbar'
 import MetricCard from '../../components/MetricCard'
@@ -10,16 +11,15 @@ export const revalidate = 60
 
 interface Props { params: { symbol: string } }
 
-const IconBarChart = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
-  </svg>
-)
-const IconDollar = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-  </svg>
-)
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const symbol = params.symbol.toUpperCase()
+  const data = await api.analyzer(symbol).catch(() => null)
+  const name = data?.companyName ?? symbol
+  return {
+    title: `${symbol} DCF Valuation`,
+    description: `${name} discounted cash flow model. Bear, base, and bull scenario fair value with adjustable assumptions.`,
+  }
+}
 
 export default async function AnalyzerPage({ params }: Props) {
   const symbol = params.symbol.toUpperCase()
@@ -34,35 +34,39 @@ export default async function AnalyzerPage({ params }: Props) {
 
         {/* ── Hero ── */}
         <div
-          className="relative overflow-hidden rounded-2xl text-center px-6 py-12 animate-fade-up"
+          className="relative overflow-hidden rounded-xl animate-fade-up"
           style={{
-            background: 'linear-gradient(180deg, #0d1628 0%, #0a1221 100%)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+            background: '#FFFFFF',
+            border: '1px solid rgba(13,13,11,0.09)',
+            boxShadow: '0 1px 4px rgba(13,13,11,0.04)',
           }}
         >
-          <div
-            className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] opacity-15"
-            style={{ background: 'radial-gradient(ellipse, rgba(59,130,246,0.3) 0%, transparent 65%)' }}
-          />
-          <div className="relative z-10">
-            <div
-              className="inline-block font-mono text-[10px] font-bold tracking-[0.15em] uppercase mb-2 px-3 py-1 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b', border: '1px solid rgba(255,255,255,0.06)' }}
-            >
-              {symbol} · Advanced Analyzer
+          <div className="h-[3px]" style={{ background: '#0D0D0B' }} />
+          <div className="px-6 py-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <div>
+              <div className="label-xs mb-1.5" style={{ color: '#9A9A98' }}>{symbol} · DCF Analyzer</div>
+              <h1
+                className="font-display font-bold text-2xl leading-tight"
+                style={{ color: '#0D0D0B', letterSpacing: '-0.02em' }}
+              >
+                {data.companyName ?? symbol}
+              </h1>
             </div>
-            <h1 className="text-2xl font-display text-white mt-1">{data.companyName ?? symbol}</h1>
-            <div className="font-mono text-4xl font-bold text-white mt-4 tabular-nums">{data.currentPriceFormatted ?? '—'}</div>
-            <div className="flex justify-center gap-6 mt-3 text-sm text-fog">
-              <span>Mkt Cap: <span className="font-mono font-semibold text-mist">{data.marketCapFormatted ?? '—'}</span></span>
-              <span>Shares: <span className="font-mono font-semibold text-mist">{data.sharesFormatted ?? '—'}</span></span>
+            <div className="flex items-center gap-8">
+              <div>
+                <div className="label-xs mb-1" style={{ color: '#9A9A98' }}>Current Price</div>
+                <div className="num text-3xl font-bold" style={{ color: '#0D0D0B' }}>{data.currentPriceFormatted ?? '—'}</div>
+              </div>
+              <div className="text-sm" style={{ color: '#6A6A68' }}>
+                <div>Mkt Cap: <span className="num font-semibold" style={{ color: '#0D0D0B' }}>{data.marketCapFormatted ?? '—'}</span></div>
+                <div>Shares: <span className="num font-semibold" style={{ color: '#0D0D0B' }}>{data.sharesFormatted ?? '—'}</span></div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* ── Historical Metrics ── */}
-        <Card title="Historical Metrics (TTM)" icon={<IconBarChart />} accent="blue">
+        <Card title="Historical Metrics (TTM)" accent="blue">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             <MetricCard label="Revenue Growth" value={data.revenueGrowthFormatted} />
             <MetricCard label="Profit Margin"  value={data.profitMarginFormatted} />
@@ -74,28 +78,28 @@ export default async function AnalyzerPage({ params }: Props) {
         </Card>
 
         {/* ── TTM Financials ── */}
-        <Card title="TTM Financials" icon={<IconDollar />}>
+        <Card title="TTM Financials">
           <div className="grid grid-cols-3 gap-2.5">
-            <MetricCard label="Revenue"         value={data.ttmRevenueFormatted} />
-            <MetricCard label="Net Income"      value={data.ttmNetIncomeFormatted} />
-            <MetricCard label="Free Cash Flow"  value={data.ttmFcfFormatted} />
+            <MetricCard label="Revenue"        value={data.ttmRevenueFormatted} highlight />
+            <MetricCard label="Net Income"     value={data.ttmNetIncomeFormatted} />
+            <MetricCard label="Free Cash Flow" value={data.ttmFcfFormatted} />
           </div>
         </Card>
 
         {/* ── Turnaround alert ── */}
         {data.turnaroundMode && (
           <div
-            className="flex items-start gap-3 rounded-xl px-5 py-4 animate-fade-up"
-            style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)' }}
+            className="flex items-start gap-3 rounded-lg px-5 py-4 animate-fade-up"
+            style={{ background: 'rgba(217,119,6,0.06)', border: '1px solid rgba(217,119,6,0.18)' }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5" aria-hidden="true">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
             </svg>
             <div>
-              <div className="text-sm font-semibold text-amber-400 mb-1">Turnaround Mode</div>
-              <div className="text-xs text-fog leading-relaxed">
+              <div className="text-sm font-bold mb-1" style={{ color: '#B45309' }}>Turnaround Mode</div>
+              <div className="text-xs leading-relaxed" style={{ color: '#6A6A68' }}>
                 This company is currently unprofitable (profit margin {data.profitMarginFormatted ?? '—'}, FCF margin {data.fcfMarginFormatted ?? '—'}).
-                Scenarios model a path to profitability with target margins. A 7-year horizon is used to allow time for the turnaround.
+                Scenarios model a path to profitability. A 7-year horizon is used.
               </div>
             </div>
           </div>
@@ -105,11 +109,11 @@ export default async function AnalyzerPage({ params }: Props) {
 
         {/* ── Disclaimer ── */}
         <div
-          className="rounded-xl px-5 py-4 text-xs text-fog leading-relaxed"
-          style={{ background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.12)' }}
+          className="rounded-lg px-5 py-4 text-xs leading-relaxed"
+          style={{ background: 'rgba(13,13,11,0.03)', border: '1px solid rgba(13,13,11,0.08)' }}
         >
-          <span className="font-semibold text-amber-500">Disclaimer: </span>
-          Educational purposes only. DCF projections are based on user-provided assumptions and simplified models. Not financial advice.
+          <span className="font-bold" style={{ color: '#6A6A68' }}>Disclaimer: </span>
+          <span style={{ color: '#9A9A98' }}>Educational purposes only. DCF projections are based on user-provided assumptions and simplified models. Not financial advice.</span>
         </div>
 
         <Footer />

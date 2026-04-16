@@ -3,7 +3,10 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import type { DashboardStock, Signal } from '@/lib/types'
+import ScoreGauge from '@/app/components/ScoreGauge'
+import SignalBadge from '@/app/components/SignalBadge'
 
+/* ── Sector map ─────────────────────────────────────────────── */
 const SECTOR_MAP: Record<string, string> = {
   MSFT:'Tech',GOOGL:'Tech',AMZN:'Tech',META:'Tech',NFLX:'Tech',CRM:'Tech',ADBE:'Tech',ORCL:'Tech',
   UBER:'Tech',ABNB:'Tech',SQ:'Tech',SHOP:'Tech',SNOW:'Tech',PLTR:'Tech',COIN:'Tech',HOOD:'Tech',
@@ -26,17 +29,100 @@ const SECTOR_MAP: Record<string, string> = {
 
 function sectorFor(sym: string) { return SECTOR_MAP[sym.toUpperCase()] ?? 'Other' }
 
-const SIGNAL_CFG = {
-  BUY:  { color: '#34d399', bg: 'rgba(16,185,129,0.12)',  border: 'rgba(16,185,129,0.28)' },
-  HOLD: { color: '#fbbf24', bg: 'rgba(245,158,11,0.10)',  border: 'rgba(245,158,11,0.25)' },
-  SELL: { color: '#f87171', bg: 'rgba(239,68,68,0.10)',   border: 'rgba(239,68,68,0.25)' },
+/* ── Sort types ─────────────────────────────────────────────── */
+type SortKey = 'rank' | 'score' | 'signal' | 'ticker' | 'price' | 'marketCap' | 'pe'
+type SortDir = 'asc' | 'desc'
+
+function parseNum(s: string | null | undefined): number {
+  if (!s) return -Infinity
+  const cleaned = s.replace(/[$,%\s]/g, '').toUpperCase()
+  const m = cleaned.match(/^([\d.]+)([BKMG]?)$/)
+  if (!m) return -Infinity
+  const n = parseFloat(m[1])
+  const suffix = m[2]
+  if (suffix === 'B') return n * 1e9
+  if (suffix === 'M') return n * 1e6
+  if (suffix === 'K') return n * 1e3
+  return n
 }
 
+function sortStocks(stocks: DashboardStock[], key: SortKey, dir: SortDir): DashboardStock[] {
+  const factor = dir === 'asc' ? 1 : -1
+  return [...stocks].sort((a, b) => {
+    switch (key) {
+      case 'rank':      return factor * (a.rank - b.rank)
+      case 'score':     return factor * (a.score - b.score)
+      case 'signal': {
+        const order = { BUY: 0, HOLD: 1, SELL: 2 }
+        return factor * (order[a.signal] - order[b.signal])
+      }
+      case 'ticker':    return factor * a.symbol.localeCompare(b.symbol)
+      case 'price':     return factor * (parseNum(a.price) - parseNum(b.price))
+      case 'marketCap': return factor * (parseNum(a.marketCap) - parseNum(b.marketCap))
+      case 'pe':        return factor * (parseNum(a.peRatio) - parseNum(b.peRatio))
+      default:          return 0
+    }
+  })
+}
+
+/* ── SortIcon ───────────────────────────────────────────────── */
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"
+      style={{ opacity: active ? 1 : 0.2, transition: 'opacity 0.15s' }}
+    >
+      {active && dir === 'asc'  && <path d="M5 2L8 7H2L5 2Z" fill="currentColor" />}
+      {active && dir === 'desc' && <path d="M5 8L8 3H2L5 8Z" fill="currentColor" />}
+      {!active && <>
+        <path d="M5 2L8 5H2L5 2Z" fill="currentColor" opacity={0.35} />
+        <path d="M5 8L8 5H2L5 8Z" fill="currentColor" opacity={0.35} />
+      </>}
+    </svg>
+  )
+}
+
+/* ── Segment check bar (for dashboard rows) ─────────────────── */
+function CheckSegBar({ greens, yellows, reds, total }: { greens: number; yellows: number; reds: number; total: number }) {
+  const segs: ('green' | 'yellow' | 'red' | 'empty')[] = []
+  for (let i = 0; i < total; i++) {
+    if (i < greens)               segs.push('green')
+    else if (i < greens + yellows) segs.push('yellow')
+    else if (i < greens + yellows + reds) segs.push('red')
+    else                          segs.push('empty')
+  }
+  const colorMap = {
+    green:  '#059669',
+    yellow: '#D97706',
+    red:    '#DC2626',
+    empty:  'rgba(0,0,0,0.08)',
+  }
+  return (
+    <div className="flex items-center gap-[2px]" aria-label={`${greens} pass, ${yellows} warn, ${reds} fail`}>
+      {segs.map((s, i) => (
+        <span
+          key={i}
+          style={{
+            display: 'block',
+            width: 6,
+            height: 6,
+            borderRadius: 1,
+            background: colorMap[s],
+            flexShrink: 0,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/* ── Main component ─────────────────────────────────────────── */
 export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] }) {
-  const [signal,      setSignal]      = useState<string>('all')
-  const [sector,      setSector]      = useState<string>('all')
-  const [query,       setQuery]       = useState<string>('')
-  const [inputValue,  setInputValue]  = useState<string>('')
+  const [signal,     setSignal]     = useState<string>('all')
+  const [sector,     setSector]     = useState<string>('all')
+  const [query,      setQuery]      = useState<string>('')
+  const [inputValue, setInputValue] = useState<string>('')
+  const [sortKey,    setSortKey]    = useState<SortKey>('rank')
+  const [sortDir,    setSortDir]    = useState<SortDir>('asc')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleSearch = useCallback((value: string) => {
@@ -45,13 +131,24 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
     debounceRef.current = setTimeout(() => setQuery(value), 200)
   }, [])
 
+  const handleSort = useCallback((key: SortKey) => {
+    setSortKey(prev => {
+      if (prev === key) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+        return prev
+      }
+      setSortDir(key === 'rank' ? 'asc' : 'desc')
+      return key
+    })
+  }, [])
+
   const sectors = useMemo(
     () => Array.from(new Set(stocks.map(s => sectorFor(s.symbol)))).sort(),
     [stocks],
   )
 
-  const filtered = useMemo(
-    () => stocks.filter(s => {
+  const filtered = useMemo(() => {
+    const f = stocks.filter(s => {
       if (signal !== 'all' && s.signal !== signal) return false
       if (sector !== 'all' && sectorFor(s.symbol) !== sector) return false
       if (query) {
@@ -59,23 +156,46 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
         return s.symbol.includes(q) || (s.companyName ?? '').toUpperCase().includes(q)
       }
       return true
-    }),
-    [stocks, signal, sector, query],
-  )
+    })
+    return sortStocks(f, sortKey, sortDir)
+  }, [stocks, signal, sector, query, sortKey, sortDir])
+
+  const columns: { key: SortKey | null; label: string; cls: string; sortable?: boolean }[] = [
+    { key: 'rank',      label: '#',       cls: 'w-10 text-center',                      sortable: true  },
+    { key: 'ticker',    label: 'Ticker',  cls: 'text-left',                             sortable: true  },
+    { key: 'signal',    label: 'Signal',  cls: 'text-left',                             sortable: true  },
+    { key: 'score',     label: 'Score',   cls: 'text-center',                           sortable: true  },
+    { key: null,        label: 'Checks',  cls: 'text-left',                             sortable: false },
+    { key: null,        label: 'Sector',  cls: 'text-left hidden sm:table-cell',        sortable: false },
+    { key: 'price',     label: 'Price',   cls: 'text-right',                            sortable: true  },
+    { key: 'marketCap', label: 'Mkt Cap', cls: 'text-right hidden lg:table-cell',       sortable: true  },
+    { key: 'pe',        label: 'P/E',     cls: 'text-right hidden lg:table-cell',       sortable: true  },
+  ]
+
+  /* ── Signal button colors ── */
+  const SIG_BTN: Record<Signal, { active: string; text: string; border: string }> = {
+    BUY:  { active: '#D1FAE5', text: '#047857', border: 'rgba(4,120,87,0.35)'   },
+    HOLD: { active: '#FEF3C7', text: '#92400E', border: 'rgba(146,64,14,0.35)' },
+    SELL: { active: '#FEE2E2', text: '#991B1B', border: 'rgba(153,27,27,0.35)' },
+  }
 
   return (
     <>
       {/* ── Filter bar ── */}
       <div
-        className="rounded-2xl mb-4 overflow-hidden"
-        style={{ background: '#08111f', border: '1px solid rgba(255,255,255,0.07)' }}
+        className="rounded-xl mb-3 overflow-hidden"
+        style={{
+          background:  '#FFFFFF',
+          border:      '1px solid rgba(0,0,0,0.07)',
+          boxShadow:   '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)',
+        }}
       >
-        {/* Search row */}
-        <div className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        {/* Search */}
+        <div className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           <div className="relative">
             <svg
-              width="14" height="14"
-              viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              width="12" height="12"
+              viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.25)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
               className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
               aria-hidden="true"
             >
@@ -83,44 +203,53 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
             </svg>
             <input
               type="text"
-              placeholder="Search ticker or name…"
+              placeholder="Filter by ticker or name…"
               aria-label="Search stocks by ticker or company name"
               value={inputValue}
               onChange={e => handleSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 rounded-lg text-sm text-white placeholder:text-slate-600 focus:outline-none transition-all"
+              className="w-full pl-9 pr-4 py-2 rounded-lg text-[12px] focus:outline-none transition-all"
               style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.07)',
-                fontFamily: 'var(--font-body)',
+                background:  'rgba(0,0,0,0.03)',
+                border:      '1px solid rgba(0,0,0,0.08)',
+                color:       '#111827',
+                fontFamily:  'var(--font-sans), Inter, sans-serif',
               }}
-              onFocus={e => { e.currentTarget.style.borderColor = 'rgba(16,185,129,0.35)'; e.currentTarget.style.background = 'rgba(16,185,129,0.03)' }}
-              onBlur={e =>  { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
+              onFocus={e => {
+                e.currentTarget.style.borderColor = 'rgba(4,120,87,0.45)'
+                e.currentTarget.style.background  = 'rgba(4,120,87,0.03)'
+                e.currentTarget.style.boxShadow   = '0 0 0 3px rgba(4,120,87,0.08)'
+              }}
+              onBlur={e => {
+                e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)'
+                e.currentTarget.style.background  = 'rgba(0,0,0,0.03)'
+                e.currentTarget.style.boxShadow   = 'none'
+              }}
             />
           </div>
         </div>
 
-        {/* Filter pills row */}
-        <div className="px-4 py-3 flex flex-wrap items-center gap-3">
-          {/* Signal */}
+        {/* Pills row */}
+        <div className="px-4 py-3 flex flex-wrap items-center gap-2">
+          {/* Signal pills */}
           <div className="flex items-center gap-1.5">
             {(['BUY', 'HOLD', 'SELL'] as Signal[]).map(v => {
               const active = signal === v
-              const cfg = SIGNAL_CFG[v]
+              const cfg = SIG_BTN[v]
               return (
                 <button
                   key={v}
                   onClick={() => setSignal(active ? 'all' : v)}
-                  aria-label={`Filter by ${v} signal`}
                   aria-pressed={active}
-                  className="px-3 py-2.5 rounded-md transition-all min-h-[44px]"
+                  className="px-2.5 py-1 rounded-full transition-all"
                   style={{
-                    background: active ? cfg.bg : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${active ? cfg.border : 'rgba(255,255,255,0.07)'}`,
-                    color: active ? cfg.color : '#475569',
-                    fontSize: '9px',
-                    fontWeight: 700,
-                    letterSpacing: '0.1em',
-                    fontFamily: 'var(--font-mono)',
+                    background:    active ? cfg.active : 'transparent',
+                    border:        `1px solid ${active ? cfg.border : 'rgba(0,0,0,0.09)'}`,
+                    color:         active ? cfg.text : '#9CA3AF',
+                    fontSize:      '10px',
+                    fontWeight:    600,
+                    letterSpacing: '0.08em',
+                    fontFamily:    'var(--font-sans), Inter, sans-serif',
+                    textTransform: 'uppercase',
                   }}
                 >
                   {v}
@@ -129,9 +258,9 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
             })}
           </div>
 
-          <div className="w-px h-4" style={{ background: 'rgba(255,255,255,0.07)' }} />
+          <div className="w-px h-3.5" style={{ background: 'rgba(0,0,0,0.08)' }} />
 
-          {/* Sector */}
+          {/* Sector pills */}
           <div className="flex items-center gap-1.5 flex-wrap">
             {sectors.map(v => {
               const active = sector === v
@@ -139,15 +268,15 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
                 <button
                   key={v}
                   onClick={() => setSector(active ? 'all' : v)}
-                  aria-label={`Filter by ${v} sector`}
                   aria-pressed={active}
-                  className="px-3 py-2.5 rounded-md text-[10px] font-semibold transition-all min-h-[44px]"
+                  className="px-2.5 py-1 rounded-full transition-all"
                   style={{
-                    background: active ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${active ? 'rgba(59,130,246,0.28)' : 'rgba(255,255,255,0.07)'}`,
-                    color: active ? '#93c5fd' : '#475569',
-                    letterSpacing: '0.06em',
-                    fontFamily: 'var(--font-body)',
+                    background:    active ? '#111827' : 'transparent',
+                    border:        `1px solid ${active ? '#111827' : 'rgba(0,0,0,0.09)'}`,
+                    color:         active ? '#FFFFFF'  : '#9CA3AF',
+                    fontSize:      '10px',
+                    fontWeight:    500,
+                    fontFamily:    'var(--font-sans), Inter, sans-serif',
                   }}
                 >
                   {v}
@@ -156,9 +285,16 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
             })}
           </div>
 
-          <div className="ml-auto">
-            <span className="num text-xs text-slate-500">
-              <span className="text-white font-bold">{filtered.length}</span>/{stocks.length}
+          <div className="ml-auto flex items-center gap-1.5">
+            <span
+              style={{
+                fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+                fontSize:   '11px',
+                color:      '#9CA3AF',
+              }}
+            >
+              <span style={{ color: '#111827', fontWeight: 600 }}>{filtered.length}</span>
+              /{stocks.length}
             </span>
           </div>
         </div>
@@ -166,40 +302,49 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
 
       {/* ── Data table ── */}
       <div
-        className="rounded-2xl overflow-hidden"
-        style={{ background: '#08111f', border: '1px solid rgba(255,255,255,0.07)' }}
+        className="rounded-xl overflow-hidden"
+        style={{
+          background: '#FFFFFF',
+          border:     '1px solid rgba(0,0,0,0.07)',
+          boxShadow:  '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)',
+        }}
       >
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.015)' }}>
-                {[
-                  { h: '#',       cls: 'w-10 text-center' },
-                  { h: 'Ticker',  cls: 'text-left' },
-                  { h: 'Signal',  cls: 'text-left' },
-                  { h: 'Score',   cls: 'text-center' },
-                  { h: 'Checks',  cls: 'text-left' },
-                  { h: 'Sector',  cls: 'text-left hidden sm:table-cell' },
-                  { h: 'Price',   cls: 'text-right' },
-                  { h: 'Mkt Cap', cls: 'text-right hidden lg:table-cell' },
-                  { h: 'P/E',     cls: 'text-right hidden lg:table-cell' },
-                ].map(({ h, cls }) => (
-                  <th
-                    key={h}
-                    className={`px-3 py-3 text-[9px] font-semibold text-slate-600 uppercase tracking-[0.12em] whitespace-nowrap ${cls}`}
-                  >
-                    {h}
-                  </th>
-                ))}
+              <tr style={{ borderBottom: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
+                {columns.map(({ key, label, cls, sortable }) => {
+                  const isActive = !!sortable && key !== null && sortKey === key
+                  return (
+                    <th
+                      key={label}
+                      className={`px-3 py-3 text-[10px] font-semibold uppercase tracking-[0.1em] whitespace-nowrap select-none ${cls} ${sortable ? 'cursor-pointer' : ''}`}
+                      style={{
+                        color:      isActive ? '#111827' : '#9CA3AF',
+                        fontFamily: 'var(--font-sans), Inter, sans-serif',
+                        transition: 'color 0.15s',
+                      }}
+                      onClick={() => sortable && key !== null && handleSort(key)}
+                      aria-sort={isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {label}
+                        {sortable && key !== null && (
+                          <SortIcon active={isActive} dir={isActive ? sortDir : 'asc'} />
+                        )}
+                      </span>
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
               {filtered.map((s, i) => (
-                <StockRow key={s.symbol} stock={s} rank={i + 1} sector={sectorFor(s.symbol)} />
+                <StockRow key={s.symbol} stock={s} rank={i + 1} sector={sectorFor(s.symbol)} isAlt={i % 2 === 1} />
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center py-20 text-slate-600 text-sm">
+                  <td colSpan={9} className="text-center py-16 text-sm" style={{ color: '#9CA3AF', fontFamily: 'var(--font-sans), Inter, sans-serif' }}>
                     No stocks match the selected filters.
                   </td>
                 </tr>
@@ -212,95 +357,102 @@ export default function DashboardFilters({ stocks }: { stocks: DashboardStock[] 
   )
 }
 
-function StockRow({ stock: s, rank, sector }: { stock: DashboardStock; rank: number; sector: string }) {
-  const scoreColor =
-    s.score >= 15 ? '#34d399' :
-    s.score >= 8  ? '#60a5fa' :
-    s.score >= 0  ? '#fbbf24' :
-    '#f87171'
+/* ── Stock row ──────────────────────────────────────────────── */
+function StockRow({ stock: s, rank, sector, isAlt }: { stock: DashboardStock; rank: number; sector: string; isAlt: boolean }) {
+  const yellows = Math.max(0, s.totalChecks - s.greens - s.reds)
 
-  const rankColor = rank === 1 ? '#fbbf24' : rank === 2 ? '#94a3b8' : rank === 3 ? '#cd7c2f' : null
-
-  const signalDot: Record<string, string> = {
-    BUY: '#10b981', HOLD: '#f59e0b', SELL: '#ef4444',
-  }
+  const rankStyle =
+    rank === 1 ? { color: '#92400E', fontWeight: 700 } :
+    rank === 2 ? { color: '#6B7280', fontWeight: 600 } :
+    rank === 3 ? { color: '#9CA3AF', fontWeight: 600 } :
+                 { color: '#D1D5DB', fontWeight: 500 }
 
   return (
     <Link href={`/view/${s.symbol}`} legacyBehavior>
       <tr
-        className="cursor-pointer transition-colors group"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.025)' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '' }}
+        className="cursor-pointer transition-all group"
+        style={{
+          borderBottom: '1px solid rgba(0,0,0,0.05)',
+          background:   isAlt ? '#F9F8F4' : '#FFFFFF',
+        }}
+        onMouseEnter={e => {
+          const el = e.currentTarget as HTMLElement
+          el.style.background  = '#FFFFFF'
+          el.style.boxShadow   = 'inset 2px 0 0 #047857'
+        }}
+        onMouseLeave={e => {
+          const el = e.currentTarget as HTMLElement
+          el.style.background  = isAlt ? '#F9F8F4' : '#FFFFFF'
+          el.style.boxShadow   = ''
+        }}
       >
         {/* Rank */}
         <td className="px-3 py-3 text-center">
-          <span
-            className="num text-[10px] font-bold"
-            style={{ color: rankColor ?? '#334155' }}
-          >
+          <span style={{ fontFamily: 'var(--font-mono), "JetBrains Mono", monospace', fontSize: '11px', ...rankStyle }}>
             {rank}
           </span>
         </td>
 
         {/* Ticker + name */}
         <td className="px-3 py-3">
-          <div className="num font-bold text-white text-sm tracking-wide">{s.symbol}</div>
-          <div className="text-[9px] text-slate-600 truncate max-w-[130px] mt-0.5">{s.companyName}</div>
-        </td>
-
-        {/* Signal */}
-        <td className="px-3 py-3">
-          <div className="flex items-center gap-1.5">
-            <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ background: signalDot[s.signal] ?? '#64748b' }}
-            />
-            <span
-              className="num text-[10px] font-bold tracking-wide"
-              style={{ color: signalDot[s.signal] ?? '#64748b' }}
-            >
-              {s.signal}
-            </span>
-          </div>
-          <div className="text-[8px] text-slate-600 uppercase tracking-wide mt-0.5 pl-3">{s.confidence}</div>
-        </td>
-
-        {/* Score */}
-        <td className="px-3 py-3 text-center">
-          <span
-            className="num text-base font-black"
-            style={{ color: scoreColor, textShadow: `0 0 12px ${scoreColor}50` }}
+          <div
+            style={{
+              fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+              fontSize:   '12px',
+              fontWeight: 600,
+              color:      '#111827',
+              letterSpacing: '0.04em',
+            }}
           >
-            {s.score}
-          </span>
+            {s.symbol}
+          </div>
+          <div
+            className="truncate max-w-[130px] mt-0.5"
+            style={{
+              fontFamily: 'var(--font-sans), Inter, sans-serif',
+              fontSize:   '10px',
+              color:      '#9CA3AF',
+            }}
+          >
+            {s.companyName}
+          </div>
         </td>
 
-        {/* Checks */}
+        {/* Signal — editorial tinted badge */}
         <td className="px-3 py-3">
-          <div className="flex items-center gap-0.5 mb-1">
-            {Array.from({ length: s.totalChecks }).map((_, i) => (
-              <span
-                key={i}
-                className="w-2 h-2 rounded-sm"
-                style={{
-                  background: i < s.greens
-                    ? '#10b981'
-                    : i < s.totalChecks - s.reds
-                    ? 'rgba(245,158,11,0.5)'
-                    : 'rgba(239,68,68,0.45)',
-                }}
-              />
-            ))}
+          <SignalBadge signal={s.signal} size="sm" />
+          <div
+            className="text-[9px] uppercase tracking-wide mt-1"
+            style={{ color: '#D1D5DB', fontFamily: 'var(--font-sans), Inter, sans-serif' }}
+          >
+            {s.confidence}
           </div>
-          <div className="num text-[9px] text-slate-600">{s.greens}G {s.reds}R</div>
+        </td>
+
+        {/* Score — editorial serif number */}
+        <td className="px-3 py-3 text-center">
+          <ScoreGauge score={s.score} signal={s.signal} size="table" animate={false} />
+        </td>
+
+        {/* Checks — segment bars */}
+        <td className="px-3 py-3">
+          <CheckSegBar greens={s.greens} yellows={yellows} reds={s.reds} total={s.totalChecks} />
         </td>
 
         {/* Sector */}
         <td className="px-3 py-3 hidden sm:table-cell">
           <span
-            className="tag"
-            style={{ background: 'rgba(255,255,255,0.03)', color: '#475569', border: '1px solid rgba(255,255,255,0.06)' }}
+            style={{
+              display:       'inline-block',
+              fontFamily:    'var(--font-sans), Inter, sans-serif',
+              fontSize:      '10px',
+              color:         '#6B7280',
+              background:    'rgba(0,0,0,0.04)',
+              border:        '1px solid rgba(0,0,0,0.07)',
+              borderRadius:  '4px',
+              padding:       '1px 6px',
+              letterSpacing: '0.02em',
+            }}
           >
             {sector}
           </span>
@@ -308,17 +460,42 @@ function StockRow({ stock: s, rank, sector }: { stock: DashboardStock; rank: num
 
         {/* Price */}
         <td className="px-3 py-3 text-right">
-          <span className="num text-sm font-bold text-white">{s.price ?? '—'}</span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+              fontSize:   '12px',
+              fontWeight: 600,
+              color:      '#111827',
+            }}
+          >
+            {s.price ?? '—'}
+          </span>
         </td>
 
         {/* Mkt Cap */}
         <td className="px-3 py-3 text-right hidden lg:table-cell">
-          <span className="num text-xs text-slate-500">{s.marketCap ?? '—'}</span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+              fontSize:   '11px',
+              color:      '#9CA3AF',
+            }}
+          >
+            {s.marketCap ?? '—'}
+          </span>
         </td>
 
         {/* P/E */}
         <td className="px-3 py-3 text-right hidden lg:table-cell">
-          <span className="num text-xs text-slate-500">{s.peRatio ?? '—'}</span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+              fontSize:   '11px',
+              color:      '#9CA3AF',
+            }}
+          >
+            {s.peRatio ?? '—'}
+          </span>
         </td>
       </tr>
     </Link>

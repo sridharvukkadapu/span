@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import SearchBar from './SearchBar'
 
 interface NavbarProps {
   symbol?: string
@@ -10,59 +11,65 @@ interface NavbarProps {
 export default function Navbar({ symbol }: NavbarProps) {
   const pathname = usePathname()
 
-  const primaryLinks = [
-    { href: '/dashboard', label: 'Dashboard' },
-    { href: '/watchlist',  label: 'Watchlist' },
-  ]
-
   const symbolLinks = symbol
     ? [
-        { href: `/view/${symbol}`,           label: 'Screener' },
-        { href: `/backtest/${symbol}`,        label: 'Backtest' },
-        { href: `/basic-analyzer/${symbol}`,  label: 'Basic' },
-        { href: `/analyzer/${symbol}`,        label: 'Advanced' },
+        { href: `/view/${symbol}`,          label: 'Analysis'  },
+        { href: `/backtest/${symbol}`,       label: 'Backtest'  },
+        { href: `/basic-analyzer/${symbol}`, label: 'Valuation' },
+        { href: `/analyzer/${symbol}`,       label: 'DCF'       },
       ]
     : []
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#03070f]/90 backdrop-blur-xl">
-      <div className="max-w-6xl mx-auto px-5 h-14 flex items-center gap-5">
-
-        {/* Brand */}
-        <Link href="/" className="shrink-0 flex items-center gap-2 group">
-          <span className="text-gradient font-display font-bold text-lg tracking-[3px]">SPAN</span>
+    <nav
+      className="sticky top-0 z-50"
+      style={{
+        background:           'rgba(255,255,255,0.95)',
+        backdropFilter:       'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom:         '1px solid rgba(0,0,0,0.07)',
+      }}
+    >
+      <div
+        className="max-w-[1280px] mx-auto px-6 sm:px-8 flex items-center gap-5"
+        style={{ height: '60px' }}
+      >
+        {/* Brand — editorial serif italic */}
+        <Link href="/" className="shrink-0 flex items-center group">
+          <span
+            style={{
+              fontFamily: 'var(--font-serif), "Playfair Display", Georgia, serif',
+              fontStyle:  'italic',
+              fontWeight: 700,
+              fontSize:   '22px',
+              color:      '#111827',
+              letterSpacing: '-0.5px',
+            }}
+          >
+            <span style={{ color: '#047857' }}>S</span>PAN
+          </span>
         </Link>
 
-        {/* Divider */}
-        <div className="w-px h-4 bg-white/[0.08] shrink-0" />
+        {/* Rule */}
+        <div className="w-px h-4 shrink-0" style={{ background: 'rgba(0,0,0,0.1)' }} />
 
-        {/* Links */}
+        {/* Symbol-scoped links */}
         <div className="flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none">
-          {primaryLinks.map(({ href, label }) => {
-            const active = pathname === href
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
-                  active
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'text-fog hover:text-mist hover:bg-white/[0.04]'
-                }`}
-              >
-                {label}
-              </Link>
-            )
-          })}
-
           {symbol && symbolLinks.length > 0 && (
             <>
-              {/* Symbol separator */}
-              <div className="flex items-center gap-1 mx-2">
-                <div className="w-px h-3 bg-white/[0.08]" />
-                <span className="font-mono text-[10px] font-bold text-emerald-500/70 tracking-widest">{symbol}</span>
-                <div className="w-px h-3 bg-white/[0.08]" />
-              </div>
+              <span
+                style={{
+                  fontFamily:    'var(--font-mono), "JetBrains Mono", monospace',
+                  fontSize:      '12px',
+                  fontWeight:    500,
+                  color:         '#047857',
+                  letterSpacing: '0.06em',
+                  marginRight:   '8px',
+                }}
+              >
+                {symbol}
+              </span>
+              <div className="w-px h-3 shrink-0 mr-1" style={{ background: 'rgba(0,0,0,0.1)' }} />
 
               {symbolLinks.map(({ href, label }) => {
                 const active = pathname === href
@@ -70,15 +77,13 @@ export default function Navbar({ symbol }: NavbarProps) {
                   <Link
                     key={href}
                     href={href}
-                    className={`px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
-                      active
-                        ? 'bg-sapphire-dim text-blue-400 border border-sapphire/20'
-                        : 'text-fog hover:text-mist hover:bg-white/[0.04]'
-                    }`}
-                    style={active ? {
-                      background: 'rgba(59,130,246,0.10)',
-                      borderColor: 'rgba(59,130,246,0.20)',
-                    } : {}}
+                    className="px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap transition-all"
+                    style={{
+                      background:  active ? '#D1FAE5' : 'transparent',
+                      color:       active ? '#047857' : '#6B7280',
+                      borderBottom: active ? '2px solid #047857' : '2px solid transparent',
+                      fontFamily: 'var(--font-sans), Inter, sans-serif',
+                    }}
                   >
                     {label}
                   </Link>
@@ -88,41 +93,34 @@ export default function Navbar({ symbol }: NavbarProps) {
           )}
         </div>
 
-        {/* Search */}
-        <SearchInput />
+        {/* Right: Search + Watchlist */}
+        <div className="flex items-center gap-2 shrink-0">
+          <SearchBar />
+          <Link
+            href="/watchlist"
+            className="flex items-center gap-1.5 text-[13px] font-medium px-3.5 py-1.5 rounded-lg transition-all"
+            style={{
+              color:      '#047857',
+              background: '#D1FAE5',
+              border:     '1px solid rgba(4,120,87,0.25)',
+              fontFamily: 'var(--font-sans), Inter, sans-serif',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = '#A7F3D0'
+              ;(e.currentTarget as HTMLElement).style.borderColor = '#047857'
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = '#D1FAE5'
+              ;(e.currentTarget as HTMLElement).style.borderColor = 'rgba(4,120,87,0.25)'
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+            Watchlist
+          </Link>
+        </div>
       </div>
     </nav>
-  )
-}
-
-function SearchInput() {
-  return (
-    <form
-      className="flex items-center gap-2 shrink-0"
-      onSubmit={e => {
-        e.preventDefault()
-        const input = (e.currentTarget.elements.namedItem('q') as HTMLInputElement).value.trim().toUpperCase()
-        if (input) window.location.href = `/view/${input}`
-      }}
-    >
-      <div className="relative">
-        <input
-          name="q"
-          type="text"
-          placeholder="TICKER"
-          maxLength={6}
-          aria-label="Search by ticker symbol"
-          className="w-24 pl-3 pr-3 py-2.5 min-h-[44px] rounded-md bg-surface border border-white/[0.08] text-white text-xs font-mono font-bold tracking-widest uppercase placeholder:text-smoke placeholder:normal-case placeholder:tracking-normal placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/40 focus:bg-surface-2 transition-all"
-        />
-      </div>
-      <button
-        type="submit"
-        aria-label="Search ticker"
-        className="px-3 py-2.5 min-h-[44px] rounded-md text-emerald-400 text-xs font-semibold transition-all hover:bg-emerald-500/20 hover:border-emerald-500/35 active:scale-95 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-        style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.22)' }}
-      >
-        Go
-      </button>
-    </form>
   )
 }
