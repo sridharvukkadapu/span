@@ -4,6 +4,7 @@ import Navbar from '../../components/Navbar'
 import Card from '../../components/Card'
 import Footer from '../../components/Footer'
 import EquityChart from './EquityChart'
+import RefreshButton from '../../components/RefreshButton'
 
 export const revalidate = 60
 
@@ -133,18 +134,19 @@ export default async function BacktestPage({ params }: Props) {
                 </h1>
                 <div className="num text-xs mt-1" style={{ color: '#9A9A98' }}>{r.periodStart} → {r.periodEnd}</div>
               </div>
-              <div>
+              <div className="flex flex-col items-end gap-2">
                 <div
                   className="num px-6 py-3 rounded-lg text-base font-bold tracking-wider"
                   style={{ background: resultBg, color: resultColor, border: `1px solid ${resultBorder}` }}
                 >
                   {badgeText}
                 </div>
-                <div className="num text-xs mt-2 text-center" style={{ color: '#9A9A98' }}>
+                <div className="num text-xs text-center" style={{ color: '#9A9A98' }}>
                   {noTrades
                     ? 'All signals were HOLD'
                     : `${r.totalTrades} trade${r.totalTrades > 1 ? 's' : ''} executed`}
                 </div>
+                <RefreshButton symbol={symbol} />
               </div>
             </div>
           </div>

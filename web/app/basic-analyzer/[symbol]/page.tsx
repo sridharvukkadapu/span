@@ -4,6 +4,7 @@ import { api } from '@/lib/api'
 import Navbar from '../../components/Navbar'
 import Footer from '../../components/Footer'
 import BasicAnalyzerClient from './BasicAnalyzerClient'
+import RefreshButton from '../../components/RefreshButton'
 
 export const revalidate = 60
 
@@ -59,6 +60,7 @@ export default async function BasicAnalyzerPage({ params }: Props) {
                 <div>Revenue (TTM): <span className="num font-semibold" style={{ color: '#0D0D0B' }}>{data.ttmRevenueFormatted ?? '—'}</span></div>
                 <div>Shares: <span className="num font-semibold" style={{ color: '#0D0D0B' }}>{data.sharesFormatted ?? '—'}</span></div>
               </div>
+              <RefreshButton symbol={symbol} />
             </div>
           </div>
         </div>

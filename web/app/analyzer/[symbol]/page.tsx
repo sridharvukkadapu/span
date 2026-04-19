@@ -6,6 +6,7 @@ import MetricCard from '../../components/MetricCard'
 import Card from '../../components/Card'
 import Footer from '../../components/Footer'
 import AnalyzerClient from './AnalyzerClient'
+import RefreshButton from '../../components/RefreshButton'
 
 export const revalidate = 60
 
@@ -61,6 +62,7 @@ export default async function AnalyzerPage({ params }: Props) {
                 <div>Mkt Cap: <span className="num font-semibold" style={{ color: '#0D0D0B' }}>{data.marketCapFormatted ?? '—'}</span></div>
                 <div>Shares: <span className="num font-semibold" style={{ color: '#0D0D0B' }}>{data.sharesFormatted ?? '—'}</span></div>
               </div>
+              <RefreshButton symbol={symbol} />
             </div>
           </div>
         </div>

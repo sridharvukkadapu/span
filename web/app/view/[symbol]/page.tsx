@@ -7,6 +7,7 @@ import ScoreGauge       from '../../components/ScoreGauge'
 import CheckMeter       from '../../components/CheckMeter'
 import Footer           from '../../components/Footer'
 import WatchlistButton  from '../../components/WatchlistButton'
+import RefreshButton    from '../../components/RefreshButton'
 import ViewTracker      from '../../components/ViewTracker'
 import StickyHeader     from './StickyHeader'
 import InlineDCF        from './InlineDCF'
@@ -253,6 +254,7 @@ export default async function ScreenerPage({ params }: Props) {
               {/* Right: actions */}
               <div className="flex lg:flex-col gap-2 flex-wrap lg:justify-start">
                 <WatchlistButton symbol={symbol} />
+                <RefreshButton symbol={symbol} />
               </div>
             </div>
           </div>

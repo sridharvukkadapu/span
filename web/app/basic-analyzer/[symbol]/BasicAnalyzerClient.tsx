@@ -10,24 +10,30 @@ interface Scenario {
   peMultiple:         number
   dilutionPctPerYear: number
   years:              number
+  requiredReturnPct:  number
 }
 
 interface Result {
-  price: number
-  gain:  number
+  price:      number
+  gain:       number
+  fairValue:  number
+  margin:     number   // (fairValue - currentPrice) / currentPrice * 100
 }
 
 /* ── Calc ──────────────────────────────────────────────── */
 function calcScenario(rev: number, shares: number, currentPrice: number, s: Scenario): Result {
-  const revB        = rev / 1e9
-  const sharesB     = shares / 1e9
-  const futureRev   = revB   * Math.pow(1 + s.growthRatePct      / 100, s.years)
-  const futureEarn  = futureRev * (s.netProfitPct / 100)
-  const futureMcap  = futureEarn * s.peMultiple
+  const revB         = rev / 1e9
+  const sharesB      = shares / 1e9
+  const futureRev    = revB * Math.pow(1 + s.growthRatePct / 100, s.years)
+  const futureEarn   = futureRev * (s.netProfitPct / 100)
+  const futureMcap   = futureEarn * s.peMultiple
   const futureShares = sharesB * Math.pow(1 + s.dilutionPctPerYear / 100, s.years)
-  const price  = futureShares > 0 ? futureMcap / futureShares : 0
-  const gain   = currentPrice > 0 ? ((price - currentPrice) / currentPrice) * 100 : 0
-  return { price, gain }
+  const price        = futureShares > 0 ? futureMcap / futureShares : 0
+  const gain         = currentPrice > 0 ? ((price - currentPrice) / currentPrice) * 100 : 0
+  // Discount future price back to today using required return
+  const fairValue    = s.years > 0 ? price / Math.pow(1 + s.requiredReturnPct / 100, s.years) : price
+  const margin       = currentPrice > 0 ? ((fairValue - currentPrice) / currentPrice) * 100 : 0
+  return { price, gain, fairValue, margin }
 }
 
 function fmtPrice(v: number) {
@@ -83,11 +89,12 @@ function ScenarioSlider({
 
 /* ── Slider configs ─────────────────────────────────────── */
 const SLIDER_CFG: { key: keyof Scenario; label: string; min: number; max: number; step: number; unit: string }[] = [
-  { key: 'growthRatePct',      label: 'Revenue Growth',   min: 0,  max: 50, step: 0.5, unit: '%'  },
-  { key: 'netProfitPct',       label: 'Net Profit Margin',min: 0,  max: 60, step: 0.5, unit: '%'  },
-  { key: 'peMultiple',         label: 'P/E Multiple',     min: 5,  max: 60, step: 0.5, unit: 'x'  },
-  { key: 'dilutionPctPerYear', label: 'Dilution / Year',  min: 0,  max: 10, step: 0.1, unit: '%'  },
-  { key: 'years',              label: 'Years',            min: 1,  max: 10, step: 1,   unit: 'yr' },
+  { key: 'growthRatePct',      label: 'Revenue Growth',   min: 0,  max: 100, step: 0.5, unit: '%'  },
+  { key: 'netProfitPct',       label: 'Net Profit Margin',min: 0,  max: 60,  step: 0.5, unit: '%'  },
+  { key: 'peMultiple',         label: 'P/E Multiple',     min: 5,  max: 200, step: 0.5, unit: 'x'  },
+  { key: 'dilutionPctPerYear', label: 'Dilution / Year',  min: 0,  max: 10,  step: 0.1, unit: '%'  },
+  { key: 'years',              label: 'Years',            min: 1,  max: 10,  step: 1,   unit: 'yr' },
+  { key: 'requiredReturnPct',  label: 'Required Return',  min: 0,  max: 30,  step: 0.5, unit: '%'  },
 ]
 
 /* ── CAGR display ───────────────────────────────────────── */
@@ -106,8 +113,8 @@ function Cagr({ gain, years }: { gain: number; years: number }) {
 
 /* ── Main component ─────────────────────────────────────── */
 export default function BasicAnalyzerClient({ data }: { data: BasicAnalyzerData }) {
-  const [r, setR] = useState<Scenario>(data.reasonable)
-  const [g, setG] = useState<Scenario>(data.greatExecution)
+  const [r, setR] = useState<Scenario>({ ...data.reasonable,     requiredReturnPct: data.reasonable.requiredReturnPct     ?? 15 })
+  const [g, setG] = useState<Scenario>({ ...data.greatExecution, requiredReturnPct: data.greatExecution.requiredReturnPct ?? 15 })
 
   const currentPrice = data.currentPrice ?? 0
   const rev          = data.ttmRevenue ?? 0
@@ -207,6 +214,49 @@ export default function BasicAnalyzerClient({ data }: { data: BasicAnalyzerData 
                   onChange={v => setter(prev => ({ ...prev, [field]: v }))}
                 />
               ))}
+
+              {/* Fair Value Today */}
+              {(() => {
+                const result = resultMap[key]
+                const isUp = result.margin >= 0
+                const signalColor  = isUp ? '#047857' : '#B91C1C'
+                const signalBg     = isUp ? 'rgba(5,150,105,0.07)' : 'rgba(220,38,38,0.07)'
+                const signalBorder = isUp ? 'rgba(5,150,105,0.22)' : 'rgba(220,38,38,0.22)'
+                return (
+                  <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(13,13,11,0.09)' }}>
+                    <div
+                      className="rounded-xl"
+                      style={{ background: signalBg, border: `1.5px solid ${signalBorder}`, padding: '16px 18px 14px' }}
+                    >
+                      {/* Label row */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span
+                          className="uppercase tracking-widest font-bold"
+                          style={{ fontSize: '10px', color: signalColor, fontFamily: 'var(--font-display)', letterSpacing: '0.12em' }}
+                        >
+                          Fair Value Today
+                        </span>
+                        <span
+                          className="num font-bold tabular-nums"
+                          style={{ fontSize: '11px', color: signalColor, background: isUp ? 'rgba(5,150,105,0.12)' : 'rgba(220,38,38,0.12)', borderRadius: '4px', padding: '1px 6px' }}
+                        >
+                          {result.margin >= 0 ? '+' : ''}{result.margin.toFixed(1)}%
+                        </span>
+                      </div>
+                      {/* Hero number */}
+                      <div
+                        className="num tabular-nums font-black"
+                        style={{ fontSize: '36px', lineHeight: 1, color: signalColor, letterSpacing: '-0.02em' }}
+                      >
+                        {fmtPrice(result.fairValue)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: signalColor, opacity: 0.65, marginTop: '4px', fontFamily: 'var(--font-sans)' }}>
+                        vs current ${currentPrice.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
           ))}
         </div>

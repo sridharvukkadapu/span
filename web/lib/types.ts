@@ -178,6 +178,7 @@ export interface BasicScenarioDefaults {
   peMultiple: number
   dilutionPctPerYear: number
   years: number
+  requiredReturnPct?: number
 }
 
 export interface BasicAnalyzerData {

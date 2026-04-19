@@ -39,6 +39,11 @@ export const api = {
   dashboard: (limit = 50) =>
     get<DashboardResponse>(`/api/v1/dashboard?limit=${limit}`),
 
+  cache: {
+    evict: (ticker: string) =>
+      fetch(`/api/v1/cache/${ticker.toUpperCase()}`, { method: 'DELETE' }).then(r => r.json()),
+  },
+
   watchlist: {
     list: () => get<string[]>('/api/v1/watchlist'),
     add: (ticker: string) =>

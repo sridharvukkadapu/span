@@ -115,7 +115,7 @@ class DashboardService(
             nextTicker = tickers.getOrNull(cursor.get() % maxOf(tickers.size, 1)),
             scanStartedAt = scanStartedAt,
             lastScanAt = board.values.maxByOrNull { it.scannedAt }?.scannedAt,
-            fullCycleMinutes = tickers.size * 10, // 1 ticker per 10 min
+            fullCycleMinutes = tickers.size * 10, // ~450 tickers × 10 min ≈ 3.1 days per full cycle
         )
     }
 
