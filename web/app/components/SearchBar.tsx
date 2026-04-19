@@ -241,7 +241,7 @@ export default function SearchBar({ variant = 'nav' }: { variant?: 'nav' | 'hero
         <div
           ref={dropRef}
           role="listbox"
-          className="absolute top-full left-0 mt-1.5 z-50 rounded-xl overflow-hidden animate-fade-in"
+          className="absolute top-full left-0 mt-1.5 z-[200] rounded-xl overflow-hidden animate-fade-in"
           style={{
             width:      '100%',
             minWidth:   '220px',

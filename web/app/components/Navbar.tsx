@@ -21,7 +21,7 @@ export default function Navbar({ symbol }: NavbarProps) {
 
   return (
     <nav
-      className="sticky top-0 z-50"
+      className="sticky top-0 z-[100]"
       style={{
         background:           'rgba(255,255,255,0.95)',
         backdropFilter:       'blur(12px)',
