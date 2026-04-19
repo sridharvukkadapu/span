@@ -113,6 +113,18 @@ class DashboardService(
         return symbol
     }
 
+    /** Scan a single ticker by symbol and add it to the board. */
+    fun scanTicker(symbol: String) {
+        val result = screenerService.analyze(symbol)
+        board[symbol] = ScoredStock(result, computeScore(result), Instant.now())
+    }
+
+    /** Symbols currently in the board (for burst-scan deduplication). */
+    fun cachedSymbols(): Set<String> = board.keys.toSet()
+
+    /** Current number of stocks in the board. */
+    fun boardSize(): Int = board.size
+
     /**
      * Get the top N stocks ranked by composite score (descending).
      */

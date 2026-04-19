@@ -39,7 +39,9 @@ class TickerCacheService(
     private val misses = AtomicLong(0)
 
     companion object {
-        private const val TTL_MS = 24 * 60 * 60 * 1000L
+        // 96h TTL — a full scan cycle is ~70h (418 tickers × 10min); 96h ensures every stock
+        // scanned in one cycle survives into the next, so the board stays populated across restarts.
+        private const val TTL_MS = 96 * 60 * 60 * 1000L
     }
 
     @Suppress("UNCHECKED_CAST")

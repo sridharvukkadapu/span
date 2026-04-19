@@ -7,6 +7,7 @@ import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Component
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -31,14 +32,51 @@ class DashboardScanScheduler(
 
     companion object {
         private val CT = ZoneId.of("America/Chicago")
-        private const val OFF_PEAK_MS  = 5  * 60 * 1000L   // 5 min — 11 PM–9 AM CT
-        private const val PEAK_MS      = 10 * 60 * 1000L   // 10 min — 9 AM–11 PM CT
+        private const val OFF_PEAK_MS      = 5  * 60 * 1000L   // 5 min — 11 PM–9 AM CT
+        private const val PEAK_MS          = 10 * 60 * 1000L   // 10 min — 9 AM–11 PM CT
         private const val INITIAL_DELAY_MS = 45_000L
+        // On startup, scan this many tickers in parallel to populate the board fast.
+        // Uses a bounded thread pool so we don't slam the API with 418 simultaneous requests.
+        private const val BURST_TICKERS    = 50
+        private const val BURST_THREADS    = 5
     }
 
     @PostConstruct
     fun start() {
-        taskScheduler.schedule({ run() }, java.time.Instant.now().plusMillis(INITIAL_DELAY_MS))
+        // Burst scan: fill the board immediately on startup using tickers not already in the board
+        taskScheduler.schedule({ burstScan() }, java.time.Instant.now().plusMillis(INITIAL_DELAY_MS))
+        // Normal rotation starts after the burst finishes (burst takes ~burst/threads × avg_scan_time)
+        taskScheduler.schedule({ run() }, java.time.Instant.now().plusMillis(INITIAL_DELAY_MS + 10 * 60 * 1000L))
+    }
+
+    private fun burstScan() {
+        val tickers = dashboardService.universe
+        if (tickers.isEmpty()) return
+
+        val alreadyCached = dashboardService.cachedSymbols()
+        val toScan = tickers.filter { it !in alreadyCached }.take(BURST_TICKERS)
+        if (toScan.isEmpty()) {
+            log.info("Burst scan skipped — {} tickers already in board", alreadyCached.size)
+            return
+        }
+
+        log.info("Burst scan starting: {} tickers ({} threads)", toScan.size, BURST_THREADS)
+        val pool = Executors.newFixedThreadPool(BURST_THREADS)
+        try {
+            toScan.forEach { symbol ->
+                pool.submit {
+                    try {
+                        dashboardService.scanTicker(symbol)
+                    } catch (e: Exception) {
+                        log.warn("Burst scan failed for {}: {}", symbol, e.message)
+                    }
+                }
+            }
+        } finally {
+            pool.shutdown()
+            pool.awaitTermination(9, java.util.concurrent.TimeUnit.MINUTES)
+            log.info("Burst scan complete — board now has {} stocks", dashboardService.boardSize())
+        }
     }
 
     private fun run() {
