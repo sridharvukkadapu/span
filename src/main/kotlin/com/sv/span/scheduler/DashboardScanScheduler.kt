@@ -4,9 +4,7 @@ import com.sv.span.service.DashboardService
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.TaskScheduler
-import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.stereotype.Component
-import java.time.Duration
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.concurrent.atomic.AtomicInteger

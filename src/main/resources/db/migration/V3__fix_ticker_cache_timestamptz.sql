@@ -1,0 +1,3 @@
+ALTER TABLE ticker_cache
+    ALTER COLUMN computed_at TYPE TIMESTAMPTZ USING computed_at AT TIME ZONE 'UTC',
+    ALTER COLUMN expires_at  TYPE TIMESTAMPTZ USING expires_at  AT TIME ZONE 'UTC';

@@ -11,7 +11,8 @@ export default function RefreshButton({ symbol }: { symbol: string }) {
     if (state === 'loading') return
     setState('loading')
     try {
-      await fetch(`/api/v1/cache/${symbol.toUpperCase()}`, { method: 'DELETE' })
+      const res = await fetch(`/api/v1/cache/${symbol.toUpperCase()}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`${res.status}`)
       setState('done')
       // Re-fetch page data after short delay to let backend re-warm
       setTimeout(() => {
