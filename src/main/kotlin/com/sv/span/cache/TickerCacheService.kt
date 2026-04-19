@@ -3,6 +3,7 @@ package com.sv.span.cache
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
@@ -79,7 +80,7 @@ class TickerCacheService(
         return value
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
     @Suppress("UNCHECKED_CAST")
     private fun <T : Any> readFromL2(namespace: String, ticker: String): Pair<T, TickerCacheEntity>? {
         val row = repo.findByNamespaceAndTicker(namespace, ticker) ?: return null
@@ -94,7 +95,7 @@ class TickerCacheService(
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     private fun writeToL2(
         namespace: String, ticker: String, value: Any,
         computedAt: Instant, expiresAt: Instant, elapsed: Long, cacheKey: String,
