@@ -42,7 +42,6 @@ class TickerCacheService(
     }
 
     @Suppress("UNCHECKED_CAST")
-    @Transactional
     fun <T : Any> getOrCompute(namespace: String, key: String, loader: () -> T): T {
         val cacheKey = "$namespace:${key.uppercase()}"
         val ticker   = key.uppercase()
@@ -57,37 +56,49 @@ class TickerCacheService(
             }
         }
 
-        // ── L2: database ───────────────────────────────────────────────
-        repo.findByNamespaceAndTicker(namespace, ticker)?.let { row ->
-            if (row.expiresAt.isAfter(Instant.now())) {
-                try {
-                    val type = Class.forName(row.typeName)
-                    @Suppress("UNCHECKED_CAST")
-                    val value = mapper.readValue(row.payload, type) as T
-                    val expiresMs = row.expiresAt.toEpochMilli()
-                    memory[cacheKey] = CacheEntry(value, expiresMs, row.computedAt, row.computeMs)
-                    hits.incrementAndGet()
-                    log.info("💾 L2 HIT  [{}] — computed {} ({}ms), warmed L1", cacheKey, row.computedAt, row.computeMs)
-                    return value
-                } catch (ex: Exception) {
-                    log.warn("L2 deserialize failed [{}]: {}", cacheKey, ex.message)
-                }
-            }
+        // ── L2: database (narrow transaction — no HTTP inside) ─────────
+        readFromL2<T>(namespace, ticker)?.let { (value, row) ->
+            memory[cacheKey] = CacheEntry(value, row.expiresAt.toEpochMilli(), row.computedAt, row.computeMs)
+            hits.incrementAndGet()
+            log.info("💾 L2 HIT  [{}] — computed {} ({}ms), warmed L1", cacheKey, row.computedAt, row.computeMs)
+            return value
         }
 
-        // ── Compute + persist ──────────────────────────────────────────
+        // ── Compute (no transaction — HTTP call happens here) ──────────
         misses.incrementAndGet()
         log.info("Cache MISS [{}] — computing fresh…", cacheKey)
-        val start   = System.currentTimeMillis()
-        val value   = loader()
-        val elapsed = System.currentTimeMillis() - start
-        val expiresAt = Instant.ofEpochMilli(now + TTL_MS)
+        val start      = System.currentTimeMillis()
+        val value      = loader()
+        val elapsed    = System.currentTimeMillis() - start
+        val expiresAt  = Instant.ofEpochMilli(now + TTL_MS)
         val computedAt = Instant.now()
 
-        // Write L1
         memory[cacheKey] = CacheEntry(value, now + TTL_MS, computedAt, elapsed)
+        writeToL2(namespace, ticker, value, computedAt, expiresAt, elapsed, cacheKey)
 
-        // Write L2
+        return value
+    }
+
+    @Transactional(readOnly = true)
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : Any> readFromL2(namespace: String, ticker: String): Pair<T, TickerCacheEntity>? {
+        val row = repo.findByNamespaceAndTicker(namespace, ticker) ?: return null
+        if (!row.expiresAt.isAfter(Instant.now())) return null
+        return try {
+            val type  = Class.forName(row.typeName)
+            val value = mapper.readValue(row.payload, type) as T
+            Pair(value, row)
+        } catch (ex: Exception) {
+            log.warn("L2 deserialize failed [{}/{}]: {}", namespace, ticker, ex.message)
+            null
+        }
+    }
+
+    @Transactional
+    private fun writeToL2(
+        namespace: String, ticker: String, value: Any,
+        computedAt: Instant, expiresAt: Instant, elapsed: Long, cacheKey: String,
+    ) {
         try {
             val json     = mapper.writeValueAsString(value)
             val typeName = value::class.java.name
@@ -104,8 +115,6 @@ class TickerCacheService(
         } catch (ex: Exception) {
             log.warn("Failed to persist cache [{}] to DB: {}", cacheKey, ex.message)
         }
-
-        return value
     }
 
     fun isCached(namespace: String, key: String): Boolean {

@@ -67,9 +67,7 @@ class DashboardService(
         var loaded = 0
         for (row in rows) {
             try {
-                val type = Class.forName(row.typeName)
-                @Suppress("UNCHECKED_CAST")
-                val result = mapper.readValue(row.payload, type) as ScreenerResult
+                val result = mapper.readValue(row.payload, ScreenerResult::class.java)
                 board[row.ticker] = ScoredStock(result, computeScore(result), row.computedAt)
                 loaded++
             } catch (e: Exception) {
