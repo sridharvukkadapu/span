@@ -34,7 +34,7 @@ export default async function HomePage() {
         {/* ── Top bar: search + signal distribution ── */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-5 animate-fade-up">
           {/* Search */}
-          <div className="flex-1 max-w-md">
+          <div className="flex-1 max-w-md relative z-[50]">
             <SearchBar variant="hero" />
           </div>
 
