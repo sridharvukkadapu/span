@@ -17,6 +17,9 @@ data class TickerCacheEntity(
     @Column(nullable = false, length = 10)
     val ticker: String,
 
+    @Column(name = "type_name", nullable = false, length = 255)
+    val typeName: String,
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "jsonb")
     val payload: String,

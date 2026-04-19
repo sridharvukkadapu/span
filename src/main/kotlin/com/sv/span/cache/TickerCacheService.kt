@@ -60,12 +60,18 @@ class TickerCacheService(
         // ── L2: database ───────────────────────────────────────────────
         repo.findByNamespaceAndTicker(namespace, ticker)?.let { row ->
             if (row.expiresAt.isAfter(Instant.now())) {
-                val value = mapper.readValue(row.payload, Any::class.java) as T
-                val expiresMs = row.expiresAt.toEpochMilli()
-                memory[cacheKey] = CacheEntry(value, expiresMs, row.computedAt, row.computeMs)
-                hits.incrementAndGet()
-                log.info("💾 L2 HIT  [{}] — computed {} ({}ms), warmed L1", cacheKey, row.computedAt, row.computeMs)
-                return value
+                try {
+                    val type = Class.forName(row.typeName)
+                    @Suppress("UNCHECKED_CAST")
+                    val value = mapper.readValue(row.payload, type) as T
+                    val expiresMs = row.expiresAt.toEpochMilli()
+                    memory[cacheKey] = CacheEntry(value, expiresMs, row.computedAt, row.computeMs)
+                    hits.incrementAndGet()
+                    log.info("💾 L2 HIT  [{}] — computed {} ({}ms), warmed L1", cacheKey, row.computedAt, row.computeMs)
+                    return value
+                } catch (ex: Exception) {
+                    log.warn("L2 deserialize failed [{}]: {}", cacheKey, ex.message)
+                }
             }
         }
 
@@ -83,10 +89,12 @@ class TickerCacheService(
 
         // Write L2 (upsert by namespace+ticker — leave other namespaces intact)
         try {
-            val json = mapper.writeValueAsString(value)
+            val json     = mapper.writeValueAsString(value)
+            val typeName = value::class.java.name
             val existing = repo.findByNamespaceAndTicker(namespace, ticker)
             if (existing != null) {
                 repo.save(existing.copy(
+                    typeName   = typeName,
                     payload    = json,
                     computedAt = computedAt,
                     expiresAt  = expiresAt,
@@ -96,6 +104,7 @@ class TickerCacheService(
                 repo.save(TickerCacheEntity(
                     namespace  = namespace,
                     ticker     = ticker,
+                    typeName   = typeName,
                     payload    = json,
                     computedAt = computedAt,
                     expiresAt  = expiresAt,
