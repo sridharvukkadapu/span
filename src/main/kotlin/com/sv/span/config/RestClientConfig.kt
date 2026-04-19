@@ -1,5 +1,6 @@
 package com.sv.span.config
 
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
@@ -38,6 +39,7 @@ class RestClientConfig(
 
     @Bean
     fun objectMapper(): ObjectMapper = jacksonObjectMapper()
+        .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
 
     @Bean
     fun massiveRestClient(): RestClient {
