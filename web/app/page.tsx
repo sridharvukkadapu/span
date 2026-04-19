@@ -32,7 +32,7 @@ export default async function HomePage() {
         <WatchlistPreviewStrip />
 
         {/* ── Top bar: search + signal distribution ── */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-5 animate-fade-up">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-5 animate-fade-up relative z-[30]">
           {/* Search */}
           <div className="flex-1 max-w-md relative z-[50]">
             <SearchBar variant="hero" />
@@ -120,7 +120,7 @@ export default async function HomePage() {
         </div>
 
         {/* ── Leaderboard table ── */}
-        <div className="animate-fade-up" style={{ animationDelay: '0.12s' }}>
+        <div className="animate-fade-up relative z-[10]" style={{ animationDelay: '0.12s' }}>
           <DashboardFilters stocks={stocks} />
         </div>
 
