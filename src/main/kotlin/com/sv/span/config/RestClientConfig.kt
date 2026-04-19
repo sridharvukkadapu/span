@@ -1,5 +1,7 @@
 package com.sv.span.config
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -33,6 +35,9 @@ class RestClientConfig(
         })
         return SSLContext.getInstance("TLS").apply { init(null, trustAll, SecureRandom()) }
     }
+
+    @Bean
+    fun objectMapper(): ObjectMapper = jacksonObjectMapper()
 
     @Bean
     fun massiveRestClient(): RestClient {
