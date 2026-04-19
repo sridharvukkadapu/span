@@ -1,8 +1,11 @@
 package com.sv.span.service
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.sv.span.cache.TickerCacheRepository
 import com.sv.span.model.CheckLight
 import com.sv.span.model.ScreenerResult
 import com.sv.span.model.Signal
+import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -27,6 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger
 @Service
 class DashboardService(
     private val screenerService: ScreenerService,
+    private val cacheRepo: TickerCacheRepository,
+    private val mapper: ObjectMapper,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -50,6 +55,29 @@ class DashboardService(
 
     /** Total scan failures */
     private val scansFailed = AtomicInteger(0)
+
+    @PostConstruct
+    fun preloadFromDb() {
+        val rows = try {
+            cacheRepo.findAllByNamespaceAndExpiresAtAfter("screener", Instant.now())
+        } catch (e: Exception) {
+            log.warn("Dashboard preload failed: {}", e.message)
+            return
+        }
+        var loaded = 0
+        for (row in rows) {
+            try {
+                val type = Class.forName(row.typeName)
+                @Suppress("UNCHECKED_CAST")
+                val result = mapper.readValue(row.payload, type) as ScreenerResult
+                board[row.ticker] = ScoredStock(result, computeScore(result), row.computedAt)
+                loaded++
+            } catch (e: Exception) {
+                log.debug("Skipping preload for {}: {}", row.ticker, e.message)
+            }
+        }
+        if (loaded > 0) log.info("Dashboard preloaded {} stocks from DB cache", loaded)
+    }
 
     val universe: List<String>
         get() = tickersCsv.split(",")

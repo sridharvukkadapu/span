@@ -10,6 +10,8 @@ interface TickerCacheRepository : JpaRepository<TickerCacheEntity, Long> {
 
     fun findByNamespaceAndTicker(namespace: String, ticker: String): TickerCacheEntity?
 
+    fun findAllByNamespaceAndExpiresAtAfter(namespace: String, expiresAt: Instant): List<TickerCacheEntity>
+
     @Modifying(clearAutomatically = true)
     @Query(value = """
         INSERT INTO ticker_cache (namespace, ticker, type_name, payload, computed_at, expires_at, compute_ms)
