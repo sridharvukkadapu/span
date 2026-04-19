@@ -87,11 +87,19 @@ class TickerCacheService(
         // Write L1
         memory[cacheKey] = CacheEntry(value, now + TTL_MS, computedAt, elapsed)
 
-        // Write L2 (atomic upsert — avoids race condition on concurrent requests)
+        // Write L2
         try {
             val json     = mapper.writeValueAsString(value)
             val typeName = value::class.java.name
-            repo.upsert(namespace, ticker, typeName, json, computedAt, expiresAt, elapsed)
+            val existing = repo.findByNamespaceAndTicker(namespace, ticker)
+            if (existing != null) {
+                repo.save(existing.copy(typeName = typeName, payload = json,
+                    computedAt = computedAt, expiresAt = expiresAt, computeMs = elapsed))
+            } else {
+                repo.save(TickerCacheEntity(namespace = namespace, ticker = ticker,
+                    typeName = typeName, payload = json,
+                    computedAt = computedAt, expiresAt = expiresAt, computeMs = elapsed))
+            }
             log.info("Cached [{}] to DB — {}ms, expires {}", cacheKey, elapsed, expiresAt)
         } catch (ex: Exception) {
             log.warn("Failed to persist cache [{}] to DB: {}", cacheKey, ex.message)
