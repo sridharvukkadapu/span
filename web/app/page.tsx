@@ -3,7 +3,6 @@ import Footer from './components/Footer'
 import SearchBar from './components/SearchBar'
 import DashboardFilters from './dashboard/DashboardFilters'
 import WatchlistPreviewStrip from './components/WatchlistPreviewStrip'
-import FirstVisitBanner from './components/FirstVisitBanner'
 import Navbar from './components/Navbar'
 import { api } from '@/lib/api'
 
@@ -19,248 +18,378 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen" style={{ background: '#F7F6F2' }}>
-
       <Navbar />
 
-      {/* ── First-visit dismissible banner ── */}
-      <FirstVisitBanner />
+      {/* ── Hero ──────────────────────────────────────────────── */}
+      <section
+        className="relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(180deg, #FFFFFF 0%, #F7F6F2 100%)',
+          borderBottom: '1px solid rgba(0,0,0,0.06)',
+        }}
+      >
+        {/* Subtle grid texture */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            backgroundImage:
+              'linear-gradient(rgba(0,0,0,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.025) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+            maskImage: 'linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 100%)',
+          }}
+        />
 
-      {/* ── Main content ── */}
-      <div className="max-w-[1280px] mx-auto px-6 sm:px-8 py-8">
-
-        {/* ── Watchlist preview strip ── */}
-        <WatchlistPreviewStrip />
-
-        {/* ── Top bar: search + signal distribution ── */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-5 animate-fade-in" style={{ position: 'relative', zIndex: 40 }}>
-          {/* Search */}
-          <div className="flex-1 max-w-md">
-            <SearchBar variant="hero" />
-          </div>
-
-          {/* Signal distribution bar */}
-          {stocks.length > 0 && (
-            <div
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl shrink-0"
-              style={{
-                background: '#FFFFFF',
-                border:     '1px solid rgba(0,0,0,0.07)',
-                boxShadow:  '0 1px 3px rgba(0,0,0,0.05)',
-              }}
-            >
-              {/* Stacked bar */}
-              <div className="flex items-center h-5 rounded-md overflow-hidden gap-px" style={{ width: 80 }}>
-                {buyCount  > 0 && <div style={{ flex: buyCount,  background: '#047857' }} className="h-full" title={`${buyCount} BUY`} />}
-                {holdCount > 0 && <div style={{ flex: holdCount, background: '#D97706' }} className="h-full" title={`${holdCount} HOLD`} />}
-                {sellCount > 0 && <div style={{ flex: sellCount, background: '#991B1B' }} className="h-full" title={`${sellCount} SELL`} />}
-              </div>
-              {/* Counts */}
-              <div className="flex items-center gap-3">
-                {[
-                  { label: 'Buy',  value: buyCount,  color: '#047857' },
-                  { label: 'Hold', value: holdCount, color: '#92400E' },
-                  { label: 'Sell', value: sellCount, color: '#991B1B' },
-                ].map(s => (
-                  <div key={s.label} className="flex flex-col items-center leading-none">
-                    <span style={{
-                      fontFamily: 'var(--font-serif), "Playfair Display", Georgia, serif',
-                      fontSize: '18px', fontWeight: 700, color: s.color,
-                      fontVariantNumeric: 'tabular-nums',
-                    }}>{s.value}</span>
-                    <span style={{
-                      fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
-                      fontSize: '9px', fontWeight: 500, letterSpacing: '0.08em',
-                      textTransform: 'uppercase', color: '#9CA3AF', marginTop: '2px',
-                    }}>{s.label}</span>
-                  </div>
-                ))}
-                <div style={{ width: 1, height: 24, background: 'rgba(0,0,0,0.08)' }} />
-                <div className="flex flex-col items-center leading-none">
-                  <span style={{
-                    fontFamily: 'var(--font-serif), "Playfair Display", Georgia, serif',
-                    fontSize: '18px', fontWeight: 700, color: '#374151',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}>{stocks.length}</span>
-                  <span style={{
-                    fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
-                    fontSize: '9px', fontWeight: 500, letterSpacing: '0.08em',
-                    textTransform: 'uppercase', color: '#9CA3AF', marginTop: '2px',
-                  }}>Total</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Section header ── */}
-        <div className="flex items-center justify-between mb-3 animate-fade-up" style={{ animationDelay: '0.08s' }}>
-          <h2
-            style={{
-              fontFamily:    'var(--font-sans), Inter, sans-serif',
-              fontSize:      '11px',
-              fontWeight:    600,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color:         '#9CA3AF',
-            }}
-          >
-            Leaderboard
-          </h2>
-          {stocks.length > 0 && (
+        <div className="max-w-[1280px] mx-auto px-6 sm:px-8 pt-14 pb-12 relative">
+          {/* Eyebrow */}
+          <div className="flex items-center gap-2 mb-5">
             <span
               style={{
-                fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
-                fontSize:   '11px',
-                color:      '#D1D5DB',
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                fontSize: '10px', fontWeight: 600, letterSpacing: '0.12em',
+                textTransform: 'uppercase', color: '#047857',
+                background: 'rgba(4,120,87,0.08)',
+                border: '1px solid rgba(4,120,87,0.18)',
+                borderRadius: '99px', padding: '4px 10px',
               }}
             >
-              {stocks.length} stocks
+              <span
+                style={{
+                  width: 5, height: 5, borderRadius: '50%',
+                  background: '#047857', display: 'inline-block',
+                  animation: 'pulse-dot 2s ease-in-out infinite',
+                }}
+              />
+              Live · {stocks.length} stocks screened
             </span>
-          )}
+          </div>
+
+          {/* Headline */}
+          <h1
+            className="mb-4"
+            style={{
+              fontFamily: 'var(--font-serif), "Playfair Display", Georgia, serif',
+              fontSize: 'clamp(32px, 5vw, 56px)',
+              fontWeight: 700,
+              lineHeight: 1.1,
+              letterSpacing: '-0.02em',
+              color: '#0A0F0A',
+              maxWidth: '680px',
+            }}
+          >
+            Fundamental screening,
+            <br />
+            <span style={{ fontStyle: 'italic', color: '#047857' }}>
+              built for clarity.
+            </span>
+          </h1>
+
+          {/* Subhead */}
+          <p
+            className="mb-8"
+            style={{
+              fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+              fontSize: 'clamp(14px, 1.8vw, 17px)',
+              fontWeight: 400,
+              lineHeight: 1.6,
+              color: '#6B7280',
+              maxWidth: '520px',
+            }}
+          >
+            Revenue growth, margins, balance sheet, valuation — scored GREEN / YELLOW / RED
+            across {stocks.length > 0 ? stocks.length : '400+'} large-cap stocks. Updated continuously.
+          </p>
+
+          {/* Search + signal bar */}
+          <div
+            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
+            style={{ position: 'relative', zIndex: 40 }}
+          >
+            <div style={{ flex: '0 0 auto', width: 'min(100%, 440px)' }}>
+              <SearchBar variant="hero" />
+            </div>
+
+            {stocks.length > 0 && (
+              <div
+                className="flex items-center gap-4 px-4 py-2.5 rounded-xl shrink-0"
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid rgba(0,0,0,0.07)',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+                }}
+              >
+                {/* Mini bar */}
+                <div className="flex h-[5px] rounded-full overflow-hidden gap-px" style={{ width: 64 }}>
+                  {buyCount  > 0 && <div style={{ flex: buyCount,  background: '#059669' }} />}
+                  {holdCount > 0 && <div style={{ flex: holdCount, background: '#D97706' }} />}
+                  {sellCount > 0 && <div style={{ flex: sellCount, background: '#DC2626' }} />}
+                </div>
+
+                {[
+                  { label: 'Buy',   value: buyCount,     color: '#047857' },
+                  { label: 'Hold',  value: holdCount,    color: '#92400E' },
+                  { label: 'Sell',  value: sellCount,    color: '#991B1B' },
+                  { label: 'Total', value: stocks.length, color: '#374151', divider: true },
+                ].map(s => (
+                  <div key={s.label} className="flex items-center gap-4">
+                    {s.divider && <div style={{ width: 1, height: 22, background: 'rgba(0,0,0,0.08)' }} />}
+                    <div className="flex flex-col items-center leading-none">
+                      <span style={{
+                        fontFamily: 'var(--font-serif), "Playfair Display", Georgia, serif',
+                        fontSize: '17px', fontWeight: 700, color: s.color,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}>{s.value}</span>
+                      <span style={{
+                        fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                        fontSize: '8px', fontWeight: 500, letterSpacing: '0.1em',
+                        textTransform: 'uppercase', color: '#9CA3AF', marginTop: '3px',
+                      }}>{s.label}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Feature chips */}
+          <div className="flex flex-wrap items-center gap-2 mt-6">
+            {FEATURES.map(f => (
+              <span
+                key={f}
+                style={{
+                  fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                  fontSize: '11px', color: '#6B7280',
+                  background: 'rgba(0,0,0,0.04)',
+                  border: '1px solid rgba(0,0,0,0.07)',
+                  borderRadius: '6px',
+                  padding: '4px 9px',
+                }}
+              >
+                {f}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Watchlist strip ───────────────────────────────────── */}
+      <div className="max-w-[1280px] mx-auto px-6 sm:px-8 pt-6">
+        <WatchlistPreviewStrip />
+      </div>
+
+      {/* ── Leaderboard ───────────────────────────────────────── */}
+      <main className="max-w-[1280px] mx-auto px-6 sm:px-8 pb-8">
+
+        {/* Section label */}
+        <div
+          className="flex items-center justify-between py-4"
+          style={{ borderBottom: '1px solid rgba(0,0,0,0.06)', marginBottom: '16px' }}
+        >
+          <div className="flex items-center gap-2">
+            <h2
+              style={{
+                fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                fontSize: '11px', fontWeight: 700, letterSpacing: '0.12em',
+                textTransform: 'uppercase', color: '#374151',
+              }}
+            >
+              Leaderboard
+            </h2>
+            {stocks.length > 0 && (
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+                  fontSize: '10px', color: '#9CA3AF',
+                  background: 'rgba(0,0,0,0.04)',
+                  border: '1px solid rgba(0,0,0,0.07)',
+                  borderRadius: '4px',
+                  padding: '2px 6px',
+                }}
+              >
+                {stocks.length} stocks
+              </span>
+            )}
+          </div>
+          <span
+            style={{
+              fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+              fontSize: '10px', color: '#9CA3AF',
+            }}
+          >
+            Ranked by composite score · refreshes every 60s
+          </span>
         </div>
 
-        {/* ── Leaderboard table ── */}
-        <div className="animate-fade-up" style={{ animationDelay: '0.12s', position: 'relative', zIndex: 10 }}>
+        {/* Table */}
+        <div style={{ position: 'relative', zIndex: 10 }}>
           <DashboardFilters stocks={stocks} />
         </div>
 
-        {/* ── How it works ── */}
-        <details
-          className="mt-10 rounded-xl overflow-hidden animate-fade-up"
+        {/* How it works */}
+        <div
+          className="mt-12 rounded-2xl overflow-hidden"
           style={{
-            border:          '1px solid rgba(0,0,0,0.07)',
-            background:      '#FFFFFF',
-            animationDelay:  '0.18s',
-            boxShadow:       '0 1px 3px rgba(0,0,0,0.04)',
+            background: '#FFFFFF',
+            border: '1px solid rgba(0,0,0,0.07)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
           }}
         >
-          <summary
-            className="flex items-center justify-between px-5 py-4 cursor-pointer select-none list-none"
+          {/* Header */}
+          <div
+            className="px-6 py-5"
+            style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}
           >
-            <span
+            <h2
               style={{
-                fontFamily:    'var(--font-sans), Inter, sans-serif',
-                fontSize:      '12px',
-                fontWeight:    600,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color:         '#374151',
+                fontFamily: 'var(--font-serif), "Playfair Display", Georgia, serif',
+                fontSize: '18px', fontWeight: 700, color: '#111827',
+                letterSpacing: '-0.01em',
               }}
             >
               How the score works
-            </span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
-              <path d="M6 9l6 6 6-6"/>
-            </svg>
-          </summary>
+            </h2>
+            <p
+              style={{
+                fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                fontSize: '12px', color: '#9CA3AF', marginTop: '3px',
+              }}
+            >
+              Six independent checks, one composite score.
+            </p>
+          </div>
 
-          <div style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-            <div className="hidden lg:flex items-stretch gap-0">
-              {HOW_IT_WORKS.map(({ step, title, description }, i) => (
-                <div key={title} className="flex items-stretch flex-1">
-                  <div
-                    className="relative flex-1 p-5"
-                    style={{ borderRight: i < HOW_IT_WORKS.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none' }}
-                  >
-                    <div className="h-[2px] absolute top-0 left-0 right-0" style={{ background: '#047857' }} />
-                    <div
-                      style={{
-                        fontFamily:  'var(--font-serif), "Playfair Display", Georgia, serif',
-                        fontSize:    '20px',
-                        fontWeight:  700,
-                        color:       'rgba(0,0,0,0.12)',
-                        lineHeight:  1,
-                        marginBottom: '10px',
-                        marginTop:   '4px',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      0{step}
-                    </div>
-                    <h3
-                      className="font-semibold text-[13px] mb-1.5 leading-snug"
-                      style={{ color: '#111827', fontFamily: 'var(--font-sans), Inter, sans-serif' }}
-                    >
-                      {title}
-                    </h3>
-                    <p
-                      className="text-[11px] leading-relaxed"
-                      style={{ color: '#6B7280', fontFamily: 'var(--font-sans), Inter, sans-serif' }}
-                    >
-                      {description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-0 lg:hidden">
-              {HOW_IT_WORKS.map(({ step, title, description }, i) => (
+          {/* Cards — desktop */}
+          <div className="hidden lg:grid grid-cols-4">
+            {HOW_IT_WORKS.map(({ step, title, description, icon }, i) => (
+              <div
+                key={title}
+                className="p-6 relative group"
+                style={{
+                  borderRight: i < HOW_IT_WORKS.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none',
+                }}
+              >
                 <div
-                  key={title}
-                  className="flex gap-4 items-start p-4"
-                  style={{ borderBottom: i < HOW_IT_WORKS.length - 1 ? '1px solid rgba(0,0,0,0.06)' : 'none' }}
+                  className="absolute top-0 left-0 right-0 h-[2px]"
+                  style={{ background: 'linear-gradient(90deg, #047857, rgba(4,120,87,0.1))' }}
+                />
+                <div
+                  className="mb-3 w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: 'rgba(4,120,87,0.08)', border: '1px solid rgba(4,120,87,0.14)' }}
                 >
-                  <span
+                  <span style={{ fontSize: '16px', lineHeight: 1 }}>{icon}</span>
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+                    fontSize: '9px', fontWeight: 600, letterSpacing: '0.12em',
+                    textTransform: 'uppercase', color: '#047857', marginBottom: '6px',
+                  }}
+                >
+                  0{step}
+                </div>
+                <h3
+                  style={{
+                    fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                    fontSize: '13px', fontWeight: 600, color: '#111827',
+                    marginBottom: '6px', lineHeight: 1.3,
+                  }}
+                >
+                  {title}
+                </h3>
+                <p
+                  style={{
+                    fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                    fontSize: '11px', lineHeight: 1.6, color: '#6B7280',
+                  }}
+                >
+                  {description}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Cards — mobile */}
+          <div className="lg:hidden divide-y divide-black/[0.05]">
+            {HOW_IT_WORKS.map(({ step, title, description, icon }) => (
+              <div key={title} className="flex gap-4 p-5 items-start">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                  style={{ background: 'rgba(4,120,87,0.08)', border: '1px solid rgba(4,120,87,0.14)' }}
+                >
+                  <span style={{ fontSize: '15px', lineHeight: 1 }}>{icon}</span>
+                </div>
+                <div>
+                  <div
                     style={{
-                      fontFamily:  'var(--font-serif), "Playfair Display", Georgia, serif',
-                      fontSize:    '18px',
-                      fontWeight:  700,
-                      color:       'rgba(0,0,0,0.15)',
-                      flexShrink:  0,
-                      width:       '24px',
-                      textAlign:   'center',
-                      lineHeight:  1,
+                      fontFamily: 'var(--font-mono), "JetBrains Mono", monospace',
+                      fontSize: '9px', fontWeight: 600, letterSpacing: '0.1em',
+                      textTransform: 'uppercase', color: '#047857', marginBottom: '3px',
                     }}
                   >
                     0{step}
-                  </span>
-                  <div>
-                    <h3
-                      className="font-semibold text-[13px] mb-1"
-                      style={{ color: '#111827', fontFamily: 'var(--font-sans), Inter, sans-serif' }}
-                    >
-                      {title}
-                    </h3>
-                    <p
-                      className="text-[11px] leading-relaxed"
-                      style={{ color: '#6B7280', fontFamily: 'var(--font-sans), Inter, sans-serif' }}
-                    >
-                      {description}
-                    </p>
                   </div>
+                  <h3
+                    style={{
+                      fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                      fontSize: '13px', fontWeight: 600, color: '#111827', marginBottom: '4px',
+                    }}
+                  >
+                    {title}
+                  </h3>
+                  <p
+                    style={{
+                      fontFamily: 'var(--font-sans), "IBM Plex Sans", sans-serif',
+                      fontSize: '11px', lineHeight: 1.6, color: '#6B7280',
+                    }}
+                  >
+                    {description}
+                  </p>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        </details>
+        </div>
 
         <div className="mt-10">
           <Footer />
         </div>
-      </div>
+      </main>
     </div>
   )
 }
 
+const FEATURES = [
+  '6-factor screener',
+  'BUY / HOLD / SELL signal',
+  'DCF valuation',
+  '3-year projection',
+  'Balance sheet analysis',
+  'Technicals (SMA50 · RSI)',
+]
+
 const HOW_IT_WORKS = [
   {
     step: 1,
+    icon: '⬡',
     title: '6-Factor Screener',
     description: 'Revenue growth, margins, balance sheet, valuation, price trend, and earnings quality — each scored GREEN / YELLOW / RED.',
   },
   {
     step: 2,
+    icon: '◎',
     title: 'Composite Score',
     description: 'Checks aggregate into a single score from −17 to +25. Score maps to BUY / HOLD / SELL with confidence level.',
   },
   {
     step: 3,
+    icon: '⌁',
     title: 'DCF Valuation',
     description: 'Bear, base, and bull scenario fair value using discounted cash flow. Edit every assumption in real time.',
   },
   {
     step: 4,
+    icon: '▤',
     title: 'Key Financials',
     description: 'Revenue history, margins, balance sheet strength, and 3-year price projection — all on one page.',
   },
