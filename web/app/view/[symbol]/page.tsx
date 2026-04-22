@@ -47,7 +47,7 @@ export default async function ScreenerPage({ params }: Props) {
   const [r, analyzerData, basicAnalyzerData, backtestData] = await Promise.all([
     api.screener(symbol).catch(() => null),
     api.analyzer(symbol).catch(() => null),
-    api.basicAnalyzer(symbol).catch((e) => { console.error('basicAnalyzer fetch failed:', e.message); return null }),
+    api.basicAnalyzer(symbol).catch(() => null),
     api.backtest(symbol).catch(() => null),
   ])
 
