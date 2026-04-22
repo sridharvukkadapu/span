@@ -9,9 +9,10 @@ import Footer           from '../../components/Footer'
 import WatchlistButton  from '../../components/WatchlistButton'
 import RefreshButton    from '../../components/RefreshButton'
 import ViewTracker      from '../../components/ViewTracker'
-import StickyHeader     from './StickyHeader'
-import InlineDCF        from './InlineDCF'
-import InlineBacktest   from './InlineBacktest'
+import StickyHeader          from './StickyHeader'
+import InlineDCF             from './InlineDCF'
+import InlineBasicAnalyzer   from './InlineBasicAnalyzer'
+import InlineBacktest        from './InlineBacktest'
 
 export const revalidate = 60
 
@@ -43,9 +44,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ScreenerPage({ params }: Props) {
   const symbol = params.symbol.toUpperCase()
 
-  const [r, analyzerData, backtestData] = await Promise.all([
+  const [r, analyzerData, basicAnalyzerData, backtestData] = await Promise.all([
     api.screener(symbol).catch(() => null),
     api.analyzer(symbol).catch(() => null),
+    api.basicAnalyzer(symbol).catch(() => null),
     api.backtest(symbol).catch(() => null),
   ])
 
@@ -297,7 +299,12 @@ export default async function ScreenerPage({ params }: Props) {
           </div>
         </SectionCard>
 
-        {/* ── VALUATION (inline DCF) ── */}
+        {/* ── BASIC VALUATION (inline) ── */}
+        {basicAnalyzerData && (
+          <InlineBasicAnalyzer data={basicAnalyzerData} />
+        )}
+
+        {/* ── DCF VALUATION (inline) ── */}
         {analyzerData ? (
           <InlineDCF data={analyzerData} />
         ) : (
