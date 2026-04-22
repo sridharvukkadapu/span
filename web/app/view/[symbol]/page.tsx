@@ -47,7 +47,7 @@ export default async function ScreenerPage({ params }: Props) {
   const [r, analyzerData, basicAnalyzerData, backtestData] = await Promise.all([
     api.screener(symbol).catch(() => null),
     api.analyzer(symbol).catch(() => null),
-    api.basicAnalyzer(symbol).catch(() => null),
+    api.basicAnalyzer(symbol).catch((e) => { console.error('basicAnalyzer fetch failed:', e.message); return null }),
     api.backtest(symbol).catch(() => null),
   ])
 
@@ -300,8 +300,14 @@ export default async function ScreenerPage({ params }: Props) {
         </SectionCard>
 
         {/* ── BASIC VALUATION (inline) ── */}
-        {basicAnalyzerData && (
+        {basicAnalyzerData ? (
           <InlineBasicAnalyzer data={basicAnalyzerData} />
+        ) : (
+          <SectionCard title="Basic Valuation">
+            <div className="p-5 text-sm" style={{ color: '#9CA3AF', fontFamily: 'var(--font-sans), Inter, sans-serif' }}>
+              Valuation data unavailable for {symbol}.
+            </div>
+          </SectionCard>
         )}
 
         {/* ── DCF VALUATION (inline) ── */}
